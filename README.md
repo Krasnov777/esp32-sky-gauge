@@ -6,6 +6,14 @@ live **flight radar** of aircraft around your home and the **current weather**
 free public APIs. It serves its own web UI for mode switching and
 configuration.
 
+| Flight radar (amber theme) | Weather + rain nowcast |
+|:---:|:---:|
+| ![Radar scope tracking a helicopter](docs/radar.png) | ![Current conditions](docs/weather.png) |
+
+*Real screen captures (`/shot.bmp`): the scope tracking the Amsterdam trauma
+helicopter at 825 ft; the weather screen with a shower approaching on the
+2-hour rain graph.*
+
 ```
                           Wi-Fi / HTTPS
         ┌──────────────┐ ───────────────▶  api.adsb.lol      (aircraft positions)
