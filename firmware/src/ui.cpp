@@ -110,18 +110,16 @@ constexpr int    RADAR_R       = 108;          // outermost range ring radius (p
 // with arc_width == radius) instead of fanned lines — lines leave radial
 // gaps that widen toward the rim, sectors tile perfectly by angle.
 // Translucent full-radius arcs are expensive to composite, so the count is
-// kept low and the wedge only re-anchors in WEDGE_STEP_DEG increments (the
-// bright lead line still moves every tick); 12 sectors at 33 ms starved the
-// whole device.
+// kept low and the wedge re-anchors in WEDGE_STEP_DEG increments; 12 sectors
+// at 33 ms starved the whole device. There is no separate lead line — the
+// brightest sector is the beam.
 constexpr int    SWEEP_SECTORS = 6;
 constexpr float  SECTOR_DEG    = 7.0f;         // wedge spans ~42°
-constexpr float  WEDGE_STEP_DEG = 3.0f;        // wedge re-anchor granularity
+constexpr float  WEDGE_STEP_DEG = 1.5f;        // ≈ one re-anchor per tick at 8 s/rev
 constexpr int    WEDGE_R       = RADAR_R - 2;  // stay inside the outer ring
 constexpr uint32_t SWEEP_PERIOD_MS = 8000;     // one revolution
 
 lv_obj_t* rd_wedge[SWEEP_SECTORS] = {};        // afterglow sectors
-lv_obj_t* rd_sweep_lead = nullptr;             // bright leading edge line
-lv_point_precise_t rd_lead_pts[2];
 lv_obj_t* rd_blip[radar::MAX_AIRCRAFT]  = {};
 lv_obj_t* rd_tag[radar::MAX_AIRCRAFT]   = {};
 lv_obj_t* rd_vec[radar::MAX_AIRCRAFT]   = {};  // heading vector per blip
@@ -229,8 +227,8 @@ void build_radar_screen() {
     add_range_mark(range, true);
 
     // Sweep afterglow: contiguous translucent pie sectors with quadratically
-    // decaying opacity (drawn first = under the blips), plus a bright
-    // leading-edge line. Sector angles are set each tick in radar_place_sweep.
+    // decaying opacity (drawn first = under the blips). The brightest sector
+    // IS the sweep's leading edge — no separate line, the gradient is the beam.
     for (int i = SWEEP_SECTORS - 1; i >= 0; i--) {
         lv_obj_t* a = lv_arc_create(screen_radar);
         lv_obj_set_size(a, WEDGE_R * 2, WEDGE_R * 2);
@@ -243,15 +241,9 @@ void build_radar_screen() {
         lv_obj_set_style_arc_rounded(a, false, LV_PART_MAIN);
         lv_obj_set_style_arc_color(a, scope_col(), LV_PART_MAIN);
         float t = 1.0f - (float)i / SWEEP_SECTORS;
-        lv_obj_set_style_arc_opa(a, (lv_opa_t)(150.0f * t * t), LV_PART_MAIN);
+        lv_obj_set_style_arc_opa(a, (lv_opa_t)(190.0f * t * t), LV_PART_MAIN);
         rd_wedge[i] = a;
     }
-    rd_lead_pts[0] = {(lv_value_precise_t)CX, (lv_value_precise_t)CY};
-    rd_lead_pts[1] = {(lv_value_precise_t)CX, (lv_value_precise_t)CY};
-    rd_sweep_lead = lv_line_create(screen_radar);
-    lv_line_set_points(rd_sweep_lead, rd_lead_pts, 2);
-    lv_obj_set_style_line_color(rd_sweep_lead, scope_col(), 0);
-    lv_obj_set_style_line_width(rd_sweep_lead, 2, 0);
 
     // Center hub: a round cap over the origin point — the flat-ended sweep
     // lines otherwise overlap into a jagged square blob at the center.
@@ -314,31 +306,24 @@ void build_radar_screen() {
     lv_obj_align(rd_status, LV_ALIGN_CENTER, 0, -40);
 }
 
-// Re-aim the wedge sectors + leading edge at the current sweep angle.
+// Re-aim the wedge sectors at the current sweep angle.
 void radar_place_sweep() {
     // LVGL arc angles: 0° at 3 o'clock, clockwise. Our 0° is north/up.
     float lead = rd_sweep_deg - 90.0f;
 
-    // Wedge moves in coarse steps to bound the arc-compositing cost.
+    // Anchor in fixed steps so the arc-compositing cost stays bounded.
     static float last_anchor = -1000.0f;
     float anchor = floorf(lead / WEDGE_STEP_DEG) * WEDGE_STEP_DEG;
-    if (anchor != last_anchor) {
-        last_anchor = anchor;
-        for (int i = 0; i < SWEEP_SECTORS; i++) {
-            float e = anchor - i * SECTOR_DEG;
-            float s = e - SECTOR_DEG;
-            s = fmodf(s + 720.0f, 360.0f);
-            e = fmodf(e + 720.0f, 360.0f);
-            lv_arc_set_bg_angles(rd_wedge[i], (lv_value_precise_t)s,
-                                 (lv_value_precise_t)e);   // wraps past 0 fine
-        }
+    if (anchor == last_anchor) return;
+    last_anchor = anchor;
+    for (int i = 0; i < SWEEP_SECTORS; i++) {
+        float e = anchor - i * SECTOR_DEG;
+        float s = e - SECTOR_DEG;
+        s = fmodf(s + 720.0f, 360.0f);
+        e = fmodf(e + 720.0f, 360.0f);
+        lv_arc_set_bg_angles(rd_wedge[i], (lv_value_precise_t)s,
+                             (lv_value_precise_t)e);   // wraps past 0 fine
     }
-
-    float rad = lead * (float)M_PI / 180.0f;
-    rd_lead_pts[0] = {(lv_value_precise_t)CX, (lv_value_precise_t)CY};
-    rd_lead_pts[1] = {(lv_value_precise_t)(CX + WEDGE_R * cosf(rad)),
-                      (lv_value_precise_t)(CY + WEDGE_R * sinf(rad))};
-    lv_line_set_points(rd_sweep_lead, rd_lead_pts, 2);
 }
 
 // Re-place blips, heading vectors and labels. Positions are dead-reckoned:
