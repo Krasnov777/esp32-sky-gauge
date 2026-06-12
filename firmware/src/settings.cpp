@@ -51,6 +51,7 @@ void begin() {
     load_scalar("r_tags", snap.radar.show_tags);
     load_scalar("r_thm",  snap.radar.theme);
     load_scalar("r_alrt", snap.radar.alert_km);
+    load_scalar("r_auto", snap.radar.auto_km);
 }
 
 void save() {
@@ -68,6 +69,7 @@ void save() {
     prefs.putBool("r_tags",  snap.radar.show_tags);
     prefs.putUChar("r_thm",  snap.radar.theme);
     prefs.putUShort("r_alrt", snap.radar.alert_km);
+    prefs.putUShort("r_auto", snap.radar.auto_km);
 }
 
 void reset_to_defaults() {
@@ -121,10 +123,12 @@ bool apply_json(JsonVariantConst patch) {
         changed |= maybe_set<bool>(r["show_tags"],    snap.radar.show_tags);
         changed |= maybe_set<uint8_t>(r["theme"],     snap.radar.theme);
         changed |= maybe_set<uint16_t>(r["alert_km"], snap.radar.alert_km);
+        changed |= maybe_set<uint16_t>(r["auto_km"],  snap.radar.auto_km);
         snap.radar.range_km = constrain(snap.radar.range_km, 10, 400);
         snap.radar.poll_s   = constrain(snap.radar.poll_s, 5, 120);
         snap.radar.theme    = constrain(snap.radar.theme, 0, 1);
         snap.radar.alert_km = constrain(snap.radar.alert_km, 0, 50);
+        snap.radar.auto_km  = constrain(snap.radar.auto_km, 0, 400);
     }
 
     JsonVariantConst w = patch["wifi"];
@@ -149,6 +153,7 @@ void to_json(JsonObject out, bool include_secrets) {
     r["show_tags"] = snap.radar.show_tags;
     r["theme"]     = snap.radar.theme;
     r["alert_km"]  = snap.radar.alert_km;
+    r["auto_km"]   = snap.radar.auto_km;
 
     JsonObject w = out["wifi"].to<JsonObject>();
     w["ssid"]     = snap.wifi_ssid;

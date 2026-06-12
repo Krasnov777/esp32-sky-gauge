@@ -767,9 +767,10 @@ void weather_timer_cb(lv_timer_t*) {
 
 // ── Auto mode supervisor ─────────────────────────────────────────────────────
 // Weather is the resting screen; when an airborne aircraft comes within
-// radar.alert_km the scope takes over, and stays for 30 s after the last
-// contact so brief gaps between polls don't cause flapping. alert_km == 0
-// disables switching (Auto then just shows weather).
+// radar.auto_km the scope takes over, and stays for 30 s after the last
+// contact so brief gaps between polls don't cause flapping. auto_km == 0
+// disables switching (Auto then just shows weather). Distinct from alert_km
+// (the on-scope pulse/pin), which typically sits tighter than the switch.
 constexpr uint32_t AUTO_HOLD_MS = 30000;
 
 void auto_timer_cb(lv_timer_t*) {
@@ -779,11 +780,11 @@ void auto_timer_cb(lv_timer_t*) {
     static uint32_t last_traffic_ms = 0;
 
     bool traffic = false;
-    if (cfg.alert_km > 0) {
+    if (cfg.auto_km > 0) {
         radar::Aircraft ac[radar::MAX_AIRCRAFT];
         size_t n = radar::get_aircraft(ac, radar::MAX_AIRCRAFT);
         for (size_t i = 0; i < n; i++) {
-            if (!ac[i].on_ground && ac[i].dist_km <= (float)cfg.alert_km) {
+            if (!ac[i].on_ground && ac[i].dist_km <= (float)cfg.auto_km) {
                 traffic = true;
                 break;
             }

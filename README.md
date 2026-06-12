@@ -28,7 +28,7 @@ configuration.
 |--------------|-----------------------------------------------------------------------|
 | Flight radar | Retro PPI scope (green or amber phosphor) of live aircraft around the configured location: rotating sweep with phosphor-decay trail, blips with afterglow + callsign tags + heading vectors, round-number range rings, true-north compass, cycling detail readout (flight, route, altitude ↑↓, speed, distance). Positions are dead-reckoned between polls so blips glide. Configurable overhead alert pulses the scope when traffic flies within N km; emergency squawks (7500/7600/7700) paint red. |
 | Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. A 2-hour **rain nowcast** bar graph (buienradar raintext, 5-min steps, refreshed every 5 min) appears at the bottom whenever rain is coming. |
-| Auto         | Weather as the resting screen; switches to the radar scope while airborne traffic is within the overhead-alert distance, and back 30 s after the sky clears. Both pollers stay active. |
+| Auto         | Weather as the resting screen; switches to the radar scope while airborne traffic is within the auto-switch distance (own setting, default 5 km — independent of the overhead-alert pulse distance), and back 30 s after the sky clears. Both pollers stay active. |
 
 Mode, location, radar range/theme/alert, brightness, hostname and WiFi
 credentials are configurable from the web UI. The web UI shows only the cards

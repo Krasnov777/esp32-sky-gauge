@@ -10,7 +10,7 @@
     brightness: $('brightness'), brightnessVal: $('brightnessVal'),
     radarLat: $('radarLat'), radarLon: $('radarLon'), radarRange: $('radarRange'),
     radarPoll: $('radarPoll'), radarTags: $('radarTags'),
-    radarTheme: $('radarTheme'), radarAlert: $('radarAlert'),
+    radarTheme: $('radarTheme'), radarAlert: $('radarAlert'), radarAuto: $('radarAuto'),
     radarSaveBtn: $('radarSaveBtn'), radarStatus: $('radarStatus'),
     radarLiveBlock: $('radarLiveBlock'), radarCanvas: $('radarCanvas'),
     radarCanvasHint: $('radarCanvasHint'),
@@ -86,6 +86,7 @@
     el.radarTags.checked = s.radar?.show_tags ?? true;
     el.radarTheme.value  = String(s.radar?.theme ?? 0);
     el.radarAlert.value  = s.radar?.alert_km ?? 3;
+    el.radarAuto.value   = s.radar?.auto_km ?? 5;
     radarTheme = s.radar?.theme ?? 0;
 
     el.ssid.value     = s.wifi?.ssid     ?? '';
@@ -137,6 +138,7 @@
         show_tags: el.radarTags.checked,
         theme:    Number(el.radarTheme.value) || 0,
         alert_km: Math.max(0, Number(el.radarAlert.value) || 0),
+        auto_km:  Math.max(0, Number(el.radarAuto.value) || 0),
       }});
       el.radarStatus.textContent = 'Saved.';
       setTimeout(() => { el.radarStatus.textContent = ''; }, 3000);
