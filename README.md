@@ -8,11 +8,11 @@ configuration.
 
 | Flight radar (amber theme) | Weather + rain nowcast |
 |:---:|:---:|
-| ![Radar scope tracking a helicopter](docs/radar.png) | ![Current conditions](docs/weather.png) |
+| ![Radar scope with 12 aircraft](docs/radar.png) | ![Current conditions](docs/weather.png) |
 
-*Real screen captures (`/shot.bmp`): the scope tracking the Amsterdam trauma
-helicopter at 825 ft; the weather screen with a shower approaching on the
-2-hour rain graph.*
+*Real screen captures (`/shot.bmp`): a busy evening scope — 12 contacts around
+Schiphol, focused on a Ryanair overflight (Billund→Vienna, FL360); the weather
+screen with a shower approaching on the 2-hour rain graph.*
 
 ```
                           Wi-Fi / HTTPS

@@ -153,6 +153,20 @@ void loop() {
     display::tick();
     web::loop_tick();
     ArduinoOTA.handle();
+
+    // STA association can drop and stay down silently (observed in the wild:
+    // device alive, WiFi gone, nothing reconnecting). Nudge it every 30 s.
+    static uint32_t last_wifi_ok_ms = 0;
+    uint32_t now = millis();
+    if (WiFi.getMode() == WIFI_STA) {
+        if (WiFi.status() == WL_CONNECTED) {
+            last_wifi_ok_ms = now;
+        } else if (now - last_wifi_ok_ms > 30000) {
+            last_wifi_ok_ms = now;   // rate-limit attempts
+            log_w("WiFi down >30 s — reconnecting");
+            WiFi.reconnect();
+        }
+    }
     // Yield briefly instead of busy-spinning core 1 — LVGL timers are 33 ms+
     // granular, so a 1 ms sleep costs nothing and lets the idle task run.
     delay(1);

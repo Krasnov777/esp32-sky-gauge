@@ -223,7 +223,11 @@ void build_radar_screen() {
         int r_px = (int)lroundf((float)RADAR_R * dist_km / range);
         lv_obj_align(l, LV_ALIGN_CENTER, r_px - (rim ? 24 : 10), -10);
     };
-    for (int d = ring_step; d < range; d += ring_step) add_range_mark(d, false);
+    for (int d = ring_step; d < range; d += ring_step) {
+        // skip a mark that would collide with the rim label ("20" vs "30km")
+        if (RADAR_R - RADAR_R * d / range < 42) continue;
+        add_range_mark(d, false);
+    }
     add_range_mark(range, true);
 
     // Sweep afterglow: contiguous translucent pie sectors with quadratically
@@ -446,7 +450,7 @@ void radar_place_blips() {
     else if (f.baro_rate < -300) vsym = LV_SYMBOL_DOWN;
 
     char l2[48];
-    if (f.on_ground) snprintf(l2, sizeof(l2), "GROUND · %.0fkm", live_dist[rd_focus_ix]);
+    if (f.on_ground) snprintf(l2, sizeof(l2), "GROUND  •  %.0fkm", live_dist[rd_focus_ix]);
     else snprintf(l2, sizeof(l2), "%ldft%s  %dkt  %.1fkm",
                   (long)f.alt_ft, vsym, (int)f.gs_kt, live_dist[rd_focus_ix]);
     set_text_if_changed(rd_focus2, l2);
