@@ -5,9 +5,8 @@ display) is put together — the moving parts, how they talk, and where to look
 when you want to change something.
 
 > **History:** the project began as an audio VU meter fed by a PC microphone.
-> Those modes were removed; `python_sender/` and `esp32_gauge/` are legacy.
-> Some sequence diagrams below predate the change — module names and flows for
-> radar/weather are accurate, audio-era traces have been removed.
+> Those modes (and their helper tools) were removed in favor of the
+> radar/weather pair.
 
 If you've just cloned the repo, read sections **1–4** end-to-end. Sections 5
 onward are reference material for when you're extending the system.
@@ -76,9 +75,6 @@ esp-lcd-project/
 │       ├── index.html
 │       ├── style.css
 │       └── app.js
-│
-├── python_sender/                     (legacy audio-era mic sender — unused)
-└── esp32_gauge/                       (legacy UDP prototype — kept for reference)
 ```
 
 ---

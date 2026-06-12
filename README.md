@@ -18,9 +18,7 @@ configuration.
 ```
 
 > The project started life as an audio VU meter driven by a PC microphone —
-> those modes were removed in favor of the radar/weather pair. The old Python
-> sender lives on in `python_sender/` for reference only; current firmware no
-> longer understands its messages.
+> those modes were removed in favor of the radar/weather pair.
 
 ## Display modes
 
@@ -48,9 +46,6 @@ firmware/             PlatformIO project for the ESP32-S3 device
   src/                C++ sources (display, LVGL UI, radar/weather pollers,
                       web server, settings)
   data/               static web UI (uploaded as a LittleFS image)
-
-python_sender/        (legacy) Windows-side mic sender from the audio-gauge era
-esp32_gauge/          (legacy) Arduino-IDE / UDP prototype, kept for reference
 ```
 
 ---
