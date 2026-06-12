@@ -115,15 +115,15 @@ its own Access Point named `ESP-Gauge-XXXX` (XXXX = last 4 hex of the MAC).
 The web UI is served straight from the device at `http://esp-gauge.local` (or
 the IP shown on screen). Cards appear per selected mode:
 
-- **Mode** — two tiles (Flight Radar / Weather); clicking switches the device
-  *and* which settings cards are shown
-- **Radar live** *(radar mode)* — canvas mirror of the on-device scope, fed by
-  a WebSocket broadcast, with its own sweep and dead-reckoned blips
-- **Flight radar** *(radar mode)* — latitude/longitude, range (km), poll
-  interval, green/amber theme, overhead-alert distance, callsign tags; explicit
-  **Save** button
-- **Weather** *(weather mode)* — info card; the location comes from the Flight
-  radar settings
+- **Mode** — three tiles (Flight Radar / Weather / Auto); clicking switches the
+  device *and* which settings cards are shown
+- **Radar live** *(radar + auto modes)* — canvas mirror of the on-device scope,
+  fed by a WebSocket broadcast, with its own sweep and dead-reckoned blips
+- **Flight radar** *(radar + auto modes)* — latitude/longitude, range (km), poll
+  interval, green/amber theme, overhead-alert distance, auto-switch distance,
+  callsign tags; explicit **Save** button
+- **Weather** *(weather + auto modes)* — info card; the location comes from the
+  Flight radar settings
 - **Display** — backlight brightness (always shown)
 - **Network** — SSID / password / hostname, with an explicit **Save & Reboot**
 - **Danger zone** — reboot, factory reset (clears NVS)
@@ -189,6 +189,8 @@ routes, 10 min weather) are well within what these community services expect.
 | Scope shows `DATA ERROR` repeatedly | TLS handshake failing — usually low heap; check serial log for `start_ssl_client` errors |
 | Web page loads but no styling / 404s | LittleFS not uploaded — run `pio run -t uploadfs` |
 | `esp-gauge.local` unreachable | Windows + mDNS: install [Bonjour Print Services](https://support.apple.com/kb/DL999) or use the device IP directly |
+| OTA upload: "No response from device" | espota's Python resolver hanging on `.local` (common on macOS) — pass `--upload-port <device-ip>` |
+| Auto mode never switches to radar | Auto-switch distance set to 0, or no airborne traffic inside it — check the Flight radar card |
 | Crash on boot, reboots in loop | PSRAM mismatch; verify `platformio.ini` `psram_type` matches your module |
 
 ---

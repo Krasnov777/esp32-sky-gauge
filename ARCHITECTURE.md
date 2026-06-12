@@ -210,6 +210,7 @@ classDiagram
     +bool show_tags
     +uint8 theme
     +uint16 alert_km
+    +uint16 auto_km
   }
   Snapshot *-- RadarConfig
 ```
@@ -248,11 +249,19 @@ startup so WiFi messages are readable; not user-selectable):
 | Screen | Widgets |
 |---|---|
 | `Radar`   | range rings (round-distance steps + rim) + crosshair + cardinal ticks/"N" + 21× `lv_line` sweep (bright edge + fading trail) + center hub + 12× blip pools (`lv_obj` dot, `lv_line` heading vector, `lv_label` tag) + labels (track count, range marks, focus readout ×2, status) |
-| `Weather` | 7 icon groups built from LVGL primitives (sun/partly/cloud/rain/snow/thunder/fog — circles + lines, no image assets) + labels (temp 48 pt, description, feels/humidity, wind) + status |
-| status    | 3× `lv_label` (title, line1, line2) — boot messages only |
+| `Weather` | 7 icon groups built from LVGL primitives (sun/partly/cloud/rain/snow/thunder/fog — circles + lines, no image assets) + labels (temp 48 pt, description, feels/humidity, wind) + 24× rain-nowcast bars (bottom edge, hidden when dry) + status |
+| status    | 3× `lv_label` (title, line1, line2) — boot + OTA-progress messages |
 
 All screens are built once during `ui::begin()` (they're cheap), kept around as
 `lv_obj_t*` globals, and switched between via `lv_screen_load_anim()`.
+
+A `shown` pointer tracks which screen is actually displayed — in **Auto mode**
+that differs from what the settings mode implies, so the animation timers gate
+on `shown`, not on the mode. The Auto supervisor (500 ms `lv_timer`) rests on
+the weather screen, loads the radar screen while any airborne aircraft is
+within `radar.auto_km`, and returns 30 s after the last contact (hysteresis
+against poll-gap flapping). `auto_km == 0` disables switching; it is distinct
+from `alert_km`, which drives the on-scope focus-pin + ring pulse.
 
 The radar screen is animated by an `lv_timer` (33 ms): the sweep angle is
 derived from the wall clock (8 s/revolution — counting ticks turns timer
@@ -360,6 +369,7 @@ sequenceDiagram
     end
 
     Boot->>web: begin()       (mount LittleFS, register routes, start WS)
+    Boot->>Boot: setup_ota()  (ArduinoOTA :3232, progress on status screen)
     Boot->>Boot: radar::begin() + weather::begin()  (pollers, core 0)
     Boot->>display: set_brightness(saved)
     Boot->>ui: set_mode(saved_mode)
@@ -367,8 +377,14 @@ sequenceDiagram
     loop forever
         Boot->>display: tick()       (pumps LVGL + timers)
         Boot->>web: loop_tick()      (cleanup, debounced save, radar broadcast)
+        Boot->>Boot: ArduinoOTA.handle()
     end
 ```
+
+OTA holds the net lock for the whole transfer so poller TLS traffic can't
+compete with the update; firmware and LittleFS both flash over WiFi via the
+`ota` PlatformIO env (espota, port 3232 — on macOS pass the device IP, the
+`.local` name hangs espota's resolver).
 
 Boot intentionally lingers on the status screen for 2.5 s after WiFi is up so
 you can read the IP before the screen switches to the saved mode.
@@ -417,6 +433,15 @@ positions (`StationId = 6000 + KNMI STN`). If no station is within 100 km
 (device taken outside NL/BE), it falls back to **Open-Meteo** with a WMO
 weather-code → icon mapping. Both fetched via `net_fetch.{h,cpp}` — the
 shared TLS + PSRAM-buffered + filtered-JSON helper also used by the radar.
+
+On a separate 5-minute cadence the task also fetches the **rain nowcast**
+(`gpsgadget.buienradar.nl/data/raintext?lat&lon` — plain text, one
+`value|HH:MM` line per 5-minute step, 2 h ahead; mm/h = 10^((value−109)/32)).
+It lands in the same `Current` snapshot (station publishes preserve it) and
+feeds the weather screen's bottom bar graph, which only appears when any step
+exceeds the light-rain threshold. The poller runs in Weather **and** Auto
+modes (Auto rests on the weather screen); likewise the radar poller runs in
+Radar and Auto modes — the TLS lock keeps the two from overlapping.
 
 ---
 
