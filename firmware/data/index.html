@@ -25,6 +25,10 @@
         <strong>Weather</strong>
         <span>Current conditions at your location</span>
       </button>
+      <button class="mode-btn" data-mode="2">
+        <strong>Auto</strong>
+        <span>Weather — flips to radar when traffic is overhead</span>
+      </button>
     </div>
   </section>
 
@@ -47,7 +51,8 @@
           <option value="1">Amber</option>
         </select>
       </label>
-      <label>Overhead alert (km, 0 = off) <input type="number" id="radarAlert" step="1" min="0" max="50" value="3"></label>
+      <label>Overhead alert (km, 0 = off) — also the Auto-mode switch distance
+        <input type="number" id="radarAlert" step="1" min="0" max="50" value="3"></label>
       <label class="check"><input type="checkbox" id="radarTags" checked> Show callsign tags on blips</label>
     </div>
     <div class="row">

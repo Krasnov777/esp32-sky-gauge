@@ -37,6 +37,18 @@ lv_obj_t* screen_status = nullptr;
 lv_obj_t* screen_radar  = nullptr;
 lv_obj_t* screen_wx     = nullptr;
 
+// Which screen is (being) displayed. In Auto mode this differs from what the
+// settings mode alone implies — the supervisor flips between weather and
+// radar — so animation timers gate on this, not on `current`.
+lv_obj_t* shown = nullptr;
+
+void load_screen(lv_obj_t* target, bool anim = true) {
+    if (shown == target) return;
+    shown = target;
+    if (anim) lv_screen_load_anim(target, LV_SCR_LOAD_ANIM_FADE_IN, 220, 0, false);
+    else      lv_screen_load(target);
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 // Skip identical text updates: lv_label_set_text always reallocates and
 // invalidates, and the radar/weather screens refresh on a timer.
@@ -422,7 +434,7 @@ void radar_place_blips() {
 
 // Fast tick: rotate sweep, flare/decay blips, glide positions, pulse alert.
 void radar_timer_cb(lv_timer_t*) {
-    if (current != settings::Mode::Radar || status_active || !screen_radar) return;
+    if (shown != screen_radar || !screen_radar) return;
 
     uint32_t now = millis();
 
@@ -501,6 +513,15 @@ lv_obj_t* wx_line1  = nullptr;
 lv_obj_t* wx_line2  = nullptr;
 lv_obj_t* wx_status = nullptr;
 lv_timer_t* wx_timer = nullptr;
+
+// Rain nowcast mini-graph: one bar per 5-minute step, 2 h total, at the very
+// bottom of the round screen. Hidden entirely when the next 2 h are dry.
+constexpr int RAIN_BARS      = 24;
+constexpr int RAIN_BAR_W     = 3;
+constexpr int RAIN_BAR_PITCH = 4;
+constexpr int RAIN_BASE_Y    = 228;   // bar bottoms; chord half-width here ≈ 48 px
+constexpr int RAIN_MAX_H     = 16;
+lv_obj_t* wx_rain[RAIN_BARS] = {};
 
 const char* wind_compass(int deg) {
     static const char* dirs[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
@@ -639,25 +660,38 @@ void build_weather_screen() {
     lv_obj_set_style_text_font(wx_temp, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(wx_temp, COL_TEXT, 0);
     lv_label_set_text(wx_temp, "");
-    lv_obj_align(wx_temp, LV_ALIGN_CENTER, 0, 18);
+    lv_obj_align(wx_temp, LV_ALIGN_CENTER, 0, 10);
 
     wx_desc = lv_label_create(screen_wx);
     lv_obj_set_style_text_font(wx_desc, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(wx_desc, COL_DIM_TEXT, 0);
     lv_label_set_text(wx_desc, "");
-    lv_obj_align(wx_desc, LV_ALIGN_CENTER, 0, 52);
+    lv_obj_align(wx_desc, LV_ALIGN_CENTER, 0, 44);
 
     wx_line1 = lv_label_create(screen_wx);
     lv_obj_set_style_text_font(wx_line1, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(wx_line1, COL_TEXT, 0);
     lv_label_set_text(wx_line1, "");
-    lv_obj_align(wx_line1, LV_ALIGN_BOTTOM_MID, 0, -42);
+    lv_obj_align(wx_line1, LV_ALIGN_BOTTOM_MID, 0, -50);
 
     wx_line2 = lv_label_create(screen_wx);
     lv_obj_set_style_text_font(wx_line2, &lv_font_montserrat_14, 0);
     lv_obj_set_style_text_color(wx_line2, COL_DIM_TEXT, 0);
     lv_label_set_text(wx_line2, "");
-    lv_obj_align(wx_line2, LV_ALIGN_BOTTOM_MID, 0, -20);
+    lv_obj_align(wx_line2, LV_ALIGN_BOTTOM_MID, 0, -30);
+
+    // Rain nowcast bars (left = now, right = +2 h)
+    int x0 = CX - (RAIN_BARS * RAIN_BAR_PITCH - (RAIN_BAR_PITCH - RAIN_BAR_W)) / 2;
+    for (int i = 0; i < RAIN_BARS; i++) {
+        wx_rain[i] = lv_obj_create(screen_wx);
+        lv_obj_remove_style_all(wx_rain[i]);
+        lv_obj_set_size(wx_rain[i], RAIN_BAR_W, 2);
+        lv_obj_set_pos(wx_rain[i], x0 + i * RAIN_BAR_PITCH, RAIN_BASE_Y - 2);
+        lv_obj_set_style_radius(wx_rain[i], 1, 0);
+        lv_obj_set_style_bg_color(wx_rain[i], COL_RAIN, 0);
+        lv_obj_set_style_bg_opa(wx_rain[i], LV_OPA_COVER, 0);
+        lv_obj_add_flag(wx_rain[i], LV_OBJ_FLAG_HIDDEN);
+    }
 
     wx_status = lv_label_create(screen_wx);
     lv_obj_set_style_text_font(wx_status, &lv_font_montserrat_14, 0);
@@ -668,12 +702,13 @@ void build_weather_screen() {
 }
 
 void weather_timer_cb(lv_timer_t*) {
-    if (current != settings::Mode::Weather || status_active || !screen_wx) return;
+    if (shown != screen_wx || !screen_wx) return;
 
     auto w = weather::get();
 
     if (!w.valid) {
         for (auto* g : wx_icon) lv_obj_add_flag(g, LV_OBJ_FLAG_HIDDEN);
+        for (auto* b : wx_rain) lv_obj_add_flag(b, LV_OBJ_FLAG_HIDDEN);
         set_text_if_changed(wx_temp, "");
         set_text_if_changed(wx_desc, "");
         set_text_if_changed(wx_line1, "");
@@ -708,6 +743,67 @@ void weather_timer_cb(lv_timer_t*) {
     snprintf(buf, sizeof(buf), "wind %.0f km/h %s",
              w.wind_kmh, wind_compass(w.wind_dir_deg));
     set_text_if_changed(wx_line2, buf);
+
+    // Rain nowcast graph — only shown when rain is actually coming.
+    // raintext raw values: 0 = dry, ~77 ≈ 0.1 mm/h, ~130 ≈ 1 mm/h.
+    uint8_t peak = 0;
+    for (uint8_t i = 0; i < w.rain_n; i++) peak = max(peak, w.rain[i]);
+    bool raining_soon = w.rain_n > 0 && peak >= 70;
+
+    for (int i = 0; i < RAIN_BARS; i++) {
+        if (!raining_soon) {
+            lv_obj_add_flag(wx_rain[i], LV_OBJ_FLAG_HIDDEN);
+            continue;
+        }
+        uint8_t raw = (i < w.rain_n) ? w.rain[i] : 0;
+        float rel = (raw - 60) / 130.0f;
+        rel = rel < 0 ? 0 : (rel > 1 ? 1 : rel);
+        int h = 2 + (int)(rel * RAIN_MAX_H);
+        lv_obj_set_size(wx_rain[i], RAIN_BAR_W, h);
+        lv_obj_set_y(wx_rain[i], RAIN_BASE_Y - h);
+        lv_obj_remove_flag(wx_rain[i], LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// ── Auto mode supervisor ─────────────────────────────────────────────────────
+// Weather is the resting screen; when an airborne aircraft comes within
+// radar.alert_km the scope takes over, and stays for 30 s after the last
+// contact so brief gaps between polls don't cause flapping. alert_km == 0
+// disables switching (Auto then just shows weather).
+constexpr uint32_t AUTO_HOLD_MS = 30000;
+
+void auto_timer_cb(lv_timer_t*) {
+    if (status_active || settings::state().mode != settings::Mode::Auto) return;
+
+    const auto& cfg = settings::state().radar;
+    static uint32_t last_traffic_ms = 0;
+
+    bool traffic = false;
+    if (cfg.alert_km > 0) {
+        radar::Aircraft ac[radar::MAX_AIRCRAFT];
+        size_t n = radar::get_aircraft(ac, radar::MAX_AIRCRAFT);
+        for (size_t i = 0; i < n; i++) {
+            if (!ac[i].on_ground && ac[i].dist_km <= (float)cfg.alert_km) {
+                traffic = true;
+                break;
+            }
+        }
+    }
+
+    uint32_t now = millis();
+    if (traffic) last_traffic_ms = now;
+    bool hold = last_traffic_ms != 0 && now - last_traffic_ms < AUTO_HOLD_MS;
+    load_screen(traffic || hold ? screen_radar : screen_wx);
+}
+
+// Screen the current settings mode wants displayed right now.
+lv_obj_t* target_for_mode() {
+    switch (settings::state().mode) {
+        case settings::Mode::Radar:   return screen_radar;
+        case settings::Mode::Weather: return screen_wx;
+        // Auto: keep whatever the supervisor chose; default to weather.
+        default: return shown == screen_radar ? screen_radar : screen_wx;
+    }
 }
 
 }  // namespace
@@ -721,36 +817,33 @@ void begin() {
     // rate, and the smaller per-frame redraw keeps flush seams invisible.
     rd_timer = lv_timer_create(radar_timer_cb, 33, nullptr);
     wx_timer = lv_timer_create(weather_timer_cb, 1000, nullptr);
+    lv_timer_create(auto_timer_cb, 500, nullptr);
     set_mode(settings::state().mode);
 }
 
 void set_mode(settings::Mode m) {
     current = m;
     status_active = false;
-    lv_obj_t* target = (m == settings::Mode::Weather) ? screen_wx : screen_radar;
-    lv_screen_load_anim(target, LV_SCR_LOAD_ANIM_FADE_IN, 220, 0, false);
+    shown = nullptr;            // force the load even if the target matches
+    load_screen(target_for_mode());
 }
 
 void apply_settings() {
-    // Rebuild all screens so theme / range / labels update, then load the
-    // screen for the (possibly just-changed) settings mode. One load only —
-    // a separate set_mode() first would start a fade that the rebuild's
-    // lv_obj_clean() then guts mid-animation.
+    // Rebuild all screens so theme / range / labels update, then reload the
+    // right screen. One load only — a separate set_mode() first would start
+    // a fade that the rebuild's lv_obj_clean() then guts mid-animation.
     build_status_screen();
     build_radar_screen();
     build_weather_screen();
     current = settings::state().mode;
-    if (status_active) {
-        lv_screen_load(screen_status);
-    } else {
-        lv_obj_t* target =
-            (current == settings::Mode::Weather) ? screen_wx : screen_radar;
-        lv_screen_load_anim(target, LV_SCR_LOAD_ANIM_FADE_IN, 220, 0, false);
-    }
+    lv_obj_t* target = status_active ? screen_status : target_for_mode();
+    shown = nullptr;
+    load_screen(target, !status_active);
 }
 
 void show_status() {
     status_active = true;
+    shown = screen_status;
     lv_screen_load(screen_status);
 }
 

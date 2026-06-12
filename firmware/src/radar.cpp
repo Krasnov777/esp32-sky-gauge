@@ -177,7 +177,11 @@ void task_fn(void*) {
     for (;;) {
         const auto& cfg = settings::state();
 
-        if (cfg.mode != settings::Mode::Radar) {
+        // Auto mode needs continuous polling too — it's how overhead traffic
+        // is detected while the weather screen is resting.
+        bool active = cfg.mode == settings::Mode::Radar ||
+                      cfg.mode == settings::Mode::Auto;
+        if (!active) {
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;
         }
@@ -198,7 +202,9 @@ void task_fn(void*) {
 
         // Sleep the poll interval in slices so mode/location changes react fast.
         uint32_t waited = 0, wait_ms = max<uint16_t>(cfg.radar.poll_s, 5) * 1000u;
-        while (waited < wait_ms && settings::state().mode == settings::Mode::Radar) {
+        while (waited < wait_ms &&
+               (settings::state().mode == settings::Mode::Radar ||
+                settings::state().mode == settings::Mode::Auto)) {
             vTaskDelay(pdMS_TO_TICKS(250));
             waited += 250;
         }

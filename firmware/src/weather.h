@@ -25,6 +25,13 @@ struct Current {
     Icon    icon;
     char    desc[28];       // condition text (Dutch from buienradar, English from fallback)
     bool    valid;
+
+    // 2-hour precipitation nowcast (buienradar raintext, 5-minute steps).
+    // Raw intensity 0..255 (0 = dry; mm/h = 10^((raw-109)/32)). rain_n == 0
+    // means no nowcast data (fetch failed or outside coverage).
+    uint8_t rain[24];
+    uint8_t rain_n;
+    char    rain_start[6];  // "HH:MM" of the first step
 };
 
 enum class Status : uint8_t {

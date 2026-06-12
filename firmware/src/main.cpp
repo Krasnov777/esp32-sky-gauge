@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <ArduinoOTA.h>
 
 #include "settings.h"
 #include "display.h"
@@ -10,6 +11,7 @@
 #include "web_server.h"
 #include "radar.h"
 #include "weather.h"
+#include "net_lock.h"
 
 namespace {
 
@@ -72,6 +74,50 @@ void connect_or_ap() {
     }
 }
 
+// OTA firmware + LittleFS updates over WiFi (no USB cable needed):
+//   pio run -t upload   --upload-protocol espota --upload-port esp-gauge.local
+//   pio run -t uploadfs --upload-protocol espota --upload-port esp-gauge.local
+// The net lock is held for the whole transfer so the pollers' TLS traffic
+// can't compete with the update for heap/bandwidth.
+bool ota_holds_netlock = false;
+
+void setup_ota() {
+    ArduinoOTA.setHostname(settings::state().hostname);
+    ArduinoOTA.onStart([]() {
+        ota_holds_netlock =
+            xSemaphoreTake(netlock::handle(), pdMS_TO_TICKS(15000)) == pdTRUE;
+        ui::show_status();
+        ui::update_status("OTA update", "starting…");
+        display::tick();
+        log_i("OTA started (%s)",
+              ArduinoOTA.getCommand() == U_FLASH ? "firmware" : "filesystem");
+    });
+    ArduinoOTA.onProgress([](unsigned int done, unsigned int total) {
+        static uint8_t last_pct = 255;
+        uint8_t pct = done * 100 / total;
+        if (pct == last_pct) return;
+        last_pct = pct;
+        char buf[12];
+        snprintf(buf, sizeof(buf), "%u%%", pct);
+        ui::update_status("OTA update", buf);
+        display::tick();
+    });
+    ArduinoOTA.onEnd([]() {
+        ui::update_status("OTA done", "rebooting…");
+        display::tick();
+        if (ota_holds_netlock) xSemaphoreGive(netlock::handle());
+    });
+    ArduinoOTA.onError([](ota_error_t err) {
+        log_e("OTA error %u", err);
+        if (ota_holds_netlock) xSemaphoreGive(netlock::handle());
+        ota_holds_netlock = false;
+        ui::update_status("OTA failed", "");
+        display::tick();
+    });
+    ArduinoOTA.begin();
+    log_i("OTA ready on port 3232");
+}
+
 }  // namespace
 
 void setup() {
@@ -91,6 +137,7 @@ void setup() {
 
     connect_or_ap();
     web::begin();
+    setup_ota();
     radar::begin();     // pollers idle until their mode is active
     weather::begin();
 
@@ -105,6 +152,7 @@ void setup() {
 void loop() {
     display::tick();
     web::loop_tick();
+    ArduinoOTA.handle();
     // Yield briefly instead of busy-spinning core 1 — LVGL timers are 33 ms+
     // granular, so a 1 ms sleep costs nothing and lets the idle task run.
     delay(1);

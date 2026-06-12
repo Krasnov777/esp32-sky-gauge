@@ -40,7 +40,7 @@ void begin() {
     uint8_t mode_u8 = static_cast<uint8_t>(snap.mode);
     load_scalar("mode", mode_u8);
     // Values from the retired audio-gauge firmware (or junk) fall back to Radar.
-    snap.mode = mode_u8 <= static_cast<uint8_t>(Mode::Weather)
+    snap.mode = mode_u8 <= static_cast<uint8_t>(Mode::Auto)
                     ? static_cast<Mode>(mode_u8) : Mode::Radar;
     load_scalar("bri", snap.brightness);
 
@@ -103,7 +103,7 @@ bool apply_json(JsonVariantConst patch) {
 
     if (patch["mode"].is<uint8_t>() || patch["mode"].is<int>()) {
         uint8_t m = patch["mode"].as<uint8_t>();
-        if (m <= static_cast<uint8_t>(Mode::Weather) &&
+        if (m <= static_cast<uint8_t>(Mode::Auto) &&
             static_cast<uint8_t>(snap.mode) != m) {
             snap.mode = static_cast<Mode>(m);
             changed = true;

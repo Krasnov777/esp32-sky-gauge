@@ -9,7 +9,9 @@ namespace settings {
 
 enum class Mode : uint8_t {
     Radar = 0,    // live flight radar (adsb.lol) around the home location
-    Weather = 1,  // current conditions (Open-Meteo) at the same location
+    Weather = 1,  // current conditions (buienradar/Open-Meteo) at the same location
+    Auto = 2,     // weather by default; switches to radar while traffic is
+                  // within radar.alert_km, back 30 s after the sky clears
 };
 
 struct RadarConfig {

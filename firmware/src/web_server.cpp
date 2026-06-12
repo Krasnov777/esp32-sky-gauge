@@ -213,10 +213,12 @@ void loop_tick() {
         flush_save();
     }
 
-    // In Radar mode, push the aircraft list to web clients every 2 s so the
-    // browser can render its own scope (it dead-reckons between pushes).
+    // In Radar/Auto mode, push the aircraft list to web clients every 2 s so
+    // the browser can render its own scope (it dead-reckons between pushes).
     static uint32_t last_radar_ms = 0;
-    if (settings::state().mode == settings::Mode::Radar && ws.count() > 0) {
+    bool radar_active = settings::state().mode == settings::Mode::Radar ||
+                        settings::state().mode == settings::Mode::Auto;
+    if (radar_active && ws.count() > 0) {
         uint32_t now = millis();
         if (now - last_radar_ms >= 2000) {
             last_radar_ms = now;

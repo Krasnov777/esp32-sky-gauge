@@ -27,7 +27,8 @@ configuration.
 | Mode         | What it shows                                                         |
 |--------------|-----------------------------------------------------------------------|
 | Flight radar | Retro PPI scope (green or amber phosphor) of live aircraft around the configured location: rotating sweep with phosphor-decay trail, blips with afterglow + callsign tags + heading vectors, round-number range rings, true-north compass, cycling detail readout (flight, route, altitude ↑↓, speed, distance). Positions are dead-reckoned between polls so blips glide. Configurable overhead alert pulses the scope when traffic flies within N km; emergency squawks (7500/7600/7700) paint red. |
-| Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. |
+| Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. A 2-hour **rain nowcast** bar graph (buienradar raintext, 5-min steps, refreshed every 5 min) appears at the bottom whenever rain is coming. |
+| Auto         | Weather as the resting screen; switches to the radar scope while airborne traffic is within the overhead-alert distance, and back 30 s after the sky clears. Both pollers stay active. |
 
 Mode, location, radar range/theme/alert, brightness, hostname and WiFi
 credentials are configurable from the web UI. The web UI shows only the cards
@@ -71,8 +72,14 @@ esp32_gauge/          (legacy) Arduino-IDE / UDP prototype, kept for reference
 ```bash
 cd firmware
 pio run                       # compile
-pio run -t upload             # flash the firmware
+pio run -t upload             # flash the firmware (USB)
 pio run -t uploadfs           # upload the web UI (LittleFS image from data/)
+
+# Over WiFi (ArduinoOTA, port 3232) — no cable needed once deployed:
+pio run -e ota -t upload      # firmware OTA (screen shows progress %)
+pio run -e ota -t uploadfs    # web UI OTA
+# macOS: if espota reports "No response from device", pass the IP:
+pio run -e ota -t upload --upload-port <device-ip>
 ```
 
 To read the serial log, `pio device monitor` works in an interactive terminal.
@@ -164,6 +171,7 @@ Endpoint: `ws://<device>/ws`
 | [adsb.lol](https://api.adsb.lol/docs) | aircraft within radius (`/v2/point/lat/lon/nm`) | free, no key |
 | [adsbdb.com](https://api.adsbdb.com) | callsign → origin/destination route | free, no key |
 | [buienradar.nl](https://data.buienradar.nl/2.0/feed/json) | current weather — nearest KNMI station measurements (the feed no longer carries station coordinates, so KNMI positions are baked into `weather.cpp`) | free, no key |
+| buienradar raintext (`gpsgadget.buienradar.nl/data/raintext`) | 2-hour precipitation nowcast, 5-min steps | free, no key |
 | [open-meteo.com](https://open-meteo.com) | weather fallback outside NL/BE station coverage | free, no key |
 
 Be a good citizen: the default poll intervals (10 s aircraft, 2 lookups/cycle

@@ -24,8 +24,12 @@ volatile bool     have_data   = false;
 uint32_t last_try_ms = 0;
 bool     tried_once  = false;
 
-void publish(const Current& n) {
+// Publish station conditions, preserving the rain nowcast (separate cadence).
+void publish(Current n) {
     xSemaphoreTake(mutex, portMAX_DELAY);
+    memcpy(n.rain, cur.rain, sizeof(n.rain));
+    n.rain_n = cur.rain_n;
+    strlcpy(n.rain_start, cur.rain_start, sizeof(n.rain_start));
     cur = n;
     xSemaphoreGive(mutex);
     last_ok_ms = millis();
@@ -231,11 +235,52 @@ bool fetch_openmeteo(float lat, float lon) {
     return true;
 }
 
+// ── rain nowcast (buienradar raintext) ───────────────────────────────────────
+// Plain text, one "value|HH:MM" line per 5-minute step for the next 2 hours.
+bool fetch_rain(float lat, float lon) {
+    char url[128];
+    snprintf(url, sizeof(url),
+             "https://gpsgadget.buienradar.nl/data/raintext?lat=%.2f&lon=%.2f",
+             lat, lon);
+    char body[768];
+    if (!net::http_get_text(url, body, sizeof(body))) return false;
+
+    uint8_t levels[24] = {};
+    uint8_t n = 0;
+    char    start[6] = "";
+    char*   save = nullptr;
+    for (char* line = strtok_r(body, "\r\n", &save); line && n < 24;
+         line = strtok_r(nullptr, "\r\n", &save)) {
+        char* bar = strchr(line, '|');
+        if (!bar) continue;
+        if (n == 0) strlcpy(start, bar + 1, sizeof(start));
+        levels[n++] = (uint8_t)constrain(atoi(line), 0, 255);
+    }
+    if (n == 0) return false;
+
+    xSemaphoreTake(mutex, portMAX_DELAY);
+    memcpy(cur.rain, levels, sizeof(cur.rain));
+    cur.rain_n = n;
+    strlcpy(cur.rain_start, start, sizeof(cur.rain_start));
+    xSemaphoreGive(mutex);
+
+    uint8_t peak = 0;
+    for (uint8_t i = 0; i < n; i++) peak = max(peak, levels[i]);
+    log_i("[weather] rain nowcast: %u steps from %s, peak %u", n, start, peak);
+    return true;
+}
+
 void task_fn(void*) {
+    uint32_t last_rain_try_ms = 0;
+    bool     rain_tried       = false;
+
     for (;;) {
         const auto& cfg = settings::state();
 
-        if (cfg.mode != settings::Mode::Weather) {
+        // Auto mode shows weather as its resting screen, so keep data fresh.
+        bool active = cfg.mode == settings::Mode::Weather ||
+                      cfg.mode == settings::Mode::Auto;
+        if (!active) {
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;
         }
@@ -259,6 +304,14 @@ void task_fn(void*) {
             bool ok = fetch_buienradar(cfg.radar.lat, cfg.radar.lon) ||
                       fetch_openmeteo(cfg.radar.lat, cfg.radar.lon);
             st = ok || have_data ? Status::Ok : Status::Error;
+        }
+
+        // Rain nowcast on its own 5-minute cadence (the radar images behind
+        // it update every 5 minutes; failures just retry next cycle).
+        if (!rain_tried || now - last_rain_try_ms >= 5 * 60 * 1000UL) {
+            rain_tried       = true;
+            last_rain_try_ms = now;
+            fetch_rain(cfg.radar.lat, cfg.radar.lon);
         }
         vTaskDelay(pdMS_TO_TICKS(1000));
     }

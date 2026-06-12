@@ -31,6 +31,7 @@
   const MODE_CARDS = {
     0: ['radarLiveBlock', 'radarBlock'],
     1: ['weatherBlock'],
+    2: ['radarLiveBlock', 'radarBlock', 'weatherBlock'],   // Auto uses both
   };
   const ALL_MODE_CARDS = ['radarLiveBlock', 'radarBlock', 'weatherBlock'];
 

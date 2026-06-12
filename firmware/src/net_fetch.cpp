@@ -101,4 +101,25 @@ bool http_get_json(const char* url, JsonDocument& doc, JsonDocument& filter) {
     return true;
 }
 
+bool http_get_text(const char* url, char* out, size_t cap) {
+    netlock::Guard one_tls_at_a_time;
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.setConnectTimeout(5000);
+    http.setTimeout(8000);
+    if (!http.begin(client, url)) return false;
+
+    int code = http.GET();
+    if (code != HTTP_CODE_OK) {
+        log_w("[net] GET %s -> %d", url, code);
+        http.end();
+        return false;
+    }
+    String body = http.getString();
+    http.end();
+    strlcpy(out, body.c_str(), cap);
+    return true;
+}
+
 }  // namespace net
