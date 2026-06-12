@@ -273,6 +273,7 @@ bool fetch_rain(float lat, float lon) {
 void task_fn(void*) {
     uint32_t last_rain_try_ms = 0;
     bool     rain_tried       = false;
+    bool     on_buienradar    = false;   // raintext only covers NL/BE
 
     for (;;) {
         const auto& cfg = settings::state();
@@ -301,14 +302,16 @@ void task_fn(void*) {
             tried_once  = true;
             last_try_ms = now;
             if (!have_data) st = Status::Fetching;
-            bool ok = fetch_buienradar(cfg.radar.lat, cfg.radar.lon) ||
-                      fetch_openmeteo(cfg.radar.lat, cfg.radar.lon);
+            on_buienradar = fetch_buienradar(cfg.radar.lat, cfg.radar.lon);
+            bool ok = on_buienradar || fetch_openmeteo(cfg.radar.lat, cfg.radar.lon);
             st = ok || have_data ? Status::Ok : Status::Error;
         }
 
         // Rain nowcast on its own 5-minute cadence (the radar images behind
         // it update every 5 minutes; failures just retry next cycle).
-        if (!rain_tried || now - last_rain_try_ms >= 5 * 60 * 1000UL) {
+        // Only meaningful inside buienradar coverage (NL/BE).
+        if (on_buienradar &&
+            (!rain_tried || now - last_rain_try_ms >= 5 * 60 * 1000UL)) {
             rain_tried       = true;
             last_rain_try_ms = now;
             fetch_rain(cfg.radar.lat, cfg.radar.lon);

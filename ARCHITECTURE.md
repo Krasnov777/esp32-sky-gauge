@@ -232,7 +232,7 @@ JsonObject. The shape mirrors the struct nesting:
   "mode": 0,
   "brightness": 200,
   "radar": { "lat": 52.3105, "lon": 4.7683, "range_km": 10, "poll_s": 10,
-             "show_tags": true, "theme": 1, "alert_km": 3 },
+             "show_tags": true, "theme": 1, "alert_km": 3, "auto_km": 5 },
   "wifi": { "ssid": "MyNet", "password": "********", "hostname": "esp-gauge" }
 }
 ```

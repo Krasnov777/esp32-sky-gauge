@@ -61,12 +61,13 @@ esp32_gauge/          (legacy) Arduino-IDE / UDP prototype, kept for reference
 - [PlatformIO Core](https://platformio.org/install/cli) or the VS Code extension
 - A USB-C cable to the dev board
 
-> **This machine:** PlatformIO is installed in a dedicated venv — invoke it as
-> `~/.pio-venv/bin/pio` (or `source ~/.pio-venv/bin/activate`
-> first to use a bare `pio`). The venv also has `intelhex` installed, which
-> esptool needs for the `bootloader.bin` build step. On Apple-silicon Macs the
-> stock `tool-mklittlefs` package is x86-only — an arm64 build has been swapped
-> in (see the note in the memory files if PlatformIO ever reinstalls it).
+> **Apple-silicon Macs:** PlatformIO's stock `tool-mklittlefs` package ships an
+> x86-only binary — `uploadfs` fails with "Bad CPU type in executable". Fix:
+> replace `~/.platformio/packages/tool-mklittlefs/mklittlefs` with the official
+> `aarch64-apple-darwin` build from the
+> [mklittlefs releases](https://github.com/earlephilhower/mklittlefs/releases).
+> If the esptool bootloader step complains about `intelhex`, `pip install intelhex`
+> into the Python environment PlatformIO uses.
 
 ### Build
 ```bash
@@ -192,6 +193,13 @@ routes, 10 min weather) are well within what these community services expect.
 | OTA upload: "No response from device" | espota's Python resolver hanging on `.local` (common on macOS) — pass `--upload-port <device-ip>` |
 | Auto mode never switches to radar | Auto-switch distance set to 0, or no airborne traffic inside it — check the Flight radar card |
 | Crash on boot, reboots in loop | PSRAM mismatch; verify `platformio.ini` `psram_type` matches your module |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE). Not affiliated with adsb.lol, adsbdb, Buienradar,
+KNMI or Open-Meteo; be considerate with poll rates toward these free services.
 
 ---
 
