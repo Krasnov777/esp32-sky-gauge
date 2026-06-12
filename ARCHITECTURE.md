@@ -67,8 +67,10 @@ esp-lcd-project/
 │   │   ├── display.{h,cpp}            LovyanGFX panel + LVGL flush callback
 │   │   ├── settings.{h,cpp}           NVS-backed config + JSON in/out
 │   │   ├── ui.{h,cpp}                 LVGL screens (radar scope, weather, boot status)
-│   │   ├── radar.{h,cpp}              HTTPS poller for Radar mode (adsb.lol + adsbdb)
-│   │   ├── weather.{h,cpp}            HTTPS poller for Weather mode (Open-Meteo)
+│   │   ├── radar.{h,cpp}              poller for Radar mode (adsb.lol + adsbdb)
+│   │   ├── weather.{h,cpp}            poller for Weather mode (buienradar, Open-Meteo fallback)
+│   │   ├── net_fetch.{h,cpp}          shared HTTPS fetcher (TLS lock + PSRAM buffer + JSON filter)
+│   │   ├── net_lock.h                 mutex: max one TLS connection at a time
 │   │   └── web_server.{h,cpp}         AsyncWebServer routes + WebSocket
 │   └── data/                          Uploaded to LittleFS as the web UI
 │       ├── index.html
@@ -384,13 +386,14 @@ stall rendering) polls two free public APIs while Radar mode is active:
 
 Key implementation choices:
 
-- **Bodies are slurped into PSRAM before parsing.** A 100 km query near a hub
-  can return a few hundred KB; byte-by-byte stream parsing over TLS is slow
-  enough that the server drops the connection mid-body. `read_body()` buffers
-  the full response in PSRAM (cap 700 KB) and the filtered `JsonDocument` uses
-  a PSRAM allocator, keeping internal DRAM free.
-- **HTTP/1.0** (`useHTTP10`) avoids chunked transfer encoding.
-- `setInsecure()` skips CA validation — public read-only data, not worth the RAM.
+- **Fetches go through `net_fetch::http_get_json()`** (shared with weather):
+  TLS connections are serialized via `net_lock.h` (the heap can't fit two
+  handshakes), the body is buffered into a reused PSRAM buffer (cap 700 KB —
+  a 100 km query near a hub returns a few hundred KB, and byte-by-byte stream
+  parsing over TLS is slow enough that servers drop the connection mid-body),
+  and the filtered `JsonDocument` uses a PSRAM allocator, keeping internal
+  DRAM free. HTTP/1.0 (`useHTTP10`) avoids chunked transfer encoding;
+  `setInsecure()` skips CA validation — public read-only data, not worth the RAM.
 - The task computes distance/bearing from the configured home position
   (equirectangular approximation — fine below a few hundred km), keeps the
   nearest `MAX_AIRCRAFT` (12) sorted by distance, and publishes them under a
