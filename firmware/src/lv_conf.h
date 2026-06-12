@@ -184,7 +184,7 @@
 #define LV_USE_QRCODE 0
 #define LV_USE_BARCODE 0
 #define LV_USE_GRIDNAV 0
-#define LV_USE_SNAPSHOT 0
+#define LV_USE_SNAPSHOT 1   // /shot.bmp screen capture
 #define LV_USE_SVG 0
 #define LV_USE_TRANSLATION 0
 #define LV_USE_XML 0

@@ -120,7 +120,10 @@ the IP shown on screen). Cards appear per selected mode:
   callsign tags; explicit **Save** button
 - **Weather** *(weather + auto modes)* — info card; the location comes from the
   Flight radar settings
-- **Display** — backlight brightness (always shown)
+- **Display** — backlight brightness + a **Screenshot** button that captures
+  exactly what's on the round LCD (LVGL snapshot → 24-bit BMP, served at
+  `/shot.bmp`; scriptable: `curl -X POST http://<device>/api/shot && sleep 1 &&
+  curl -o shot.bmp http://<device>/shot.bmp`) — always shown
 - **Network** — SSID / password / hostname, with an explicit **Save & Reboot**
 - **Danger zone** — reboot, factory reset (clears NVS)
 
@@ -155,6 +158,8 @@ Endpoint: `ws://<device>/ws`
 |--------|-----------------------|------------------------------------------|
 | GET    | `/api/state`          | current settings (JSON)                  |
 | POST   | `/api/state`          | apply a JSON patch (same shape as `config.patch`) |
+| POST   | `/api/shot`           | request a screen capture (taken on the LVGL thread ~ms later) |
+| GET    | `/shot.bmp`           | most recent screen capture (240×240, 24-bit BMP) |
 | POST   | `/api/reboot`         | reboot                                   |
 | POST   | `/api/factory_reset`  | clear NVS and reboot                     |
 

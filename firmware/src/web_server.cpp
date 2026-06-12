@@ -3,6 +3,7 @@
 #include "ui.h"
 #include "display.h"
 #include "radar.h"
+#include "screenshot.h"
 
 #include <Arduino.h>
 #include <LittleFS.h>
@@ -165,6 +166,28 @@ void register_routes() {
         });
     server.addHandler(patchHandler);
 
+    // Screen capture: POST /api/shot requests one (taken on the LVGL thread
+    // a few ms later); GET /shot.bmp serves the most recent capture.
+    server.on("/api/shot", HTTP_POST, [](AsyncWebServerRequest* req) {
+        bool ok = shot::request();
+        req->send(ok ? 200 : 507, "application/json",
+                  ok ? "{\"ok\":true}" : "{\"ok\":false}");
+    });
+
+    server.on("/shot.bmp", HTTP_GET, [](AsyncWebServerRequest* req) {
+        size_t len = 0;
+        const uint8_t* data = shot::bmp(len);
+        if (!data) {
+            req->send(404, "text/plain",
+                      "No capture yet - POST /api/shot first, then retry.");
+            return;
+        }
+        AsyncWebServerResponse* res =
+            req->beginResponse(200, "image/bmp", data, len);
+        res->addHeader("Cache-Control", "no-store");
+        req->send(res);
+    });
+
     server.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest* req) {
         req->send(200, "application/json", "{\"ok\":true}");
         flush_save();
@@ -208,6 +231,8 @@ void loop_tick() {
         ui_refresh_pending = false;
         ui::apply_settings();   // rebuilds + loads the screen for the new mode
     }
+
+    shot::loop_tick();          // pending screen captures (LVGL thread)
 
     if (save_pending && millis() - save_request_ms >= SAVE_DEBOUNCE_MS) {
         flush_save();

@@ -17,6 +17,7 @@
     ssid: $('ssid'), password: $('password'), hostname: $('hostname'),
     wifiSaveBtn: $('wifiSaveBtn'), wifiStatus: $('wifiStatus'),
     rebootBtn: $('rebootBtn'), resetBtn: $('resetBtn'),
+    shotBtn: $('shotBtn'), shotStatus: $('shotStatus'),
     hostFooter: $('hostFooter'),
     modeBtns: document.querySelectorAll('.mode-btn'),
   };
@@ -163,6 +164,18 @@
       setTimeout(() => {
         ws?.send(JSON.stringify({ type: 'command', cmd: 'reboot' }));
       }, 700);
+    });
+
+    el.shotBtn.addEventListener('click', async () => {
+      el.shotStatus.textContent = 'Capturing…';
+      try {
+        await fetch('/api/shot', { method: 'POST' });
+        await new Promise(r => setTimeout(r, 600));   // capture happens on the device loop
+        window.open('/shot.bmp?t=' + Date.now(), '_blank');
+        el.shotStatus.textContent = '';
+      } catch {
+        el.shotStatus.textContent = 'Capture failed.';
+      }
     });
 
     el.rebootBtn.addEventListener('click', async () => {
