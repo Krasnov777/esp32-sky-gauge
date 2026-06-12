@@ -115,7 +115,7 @@ constexpr int    RADAR_R       = 108;          // outermost range ring radius (p
 // brightest sector is the beam.
 constexpr int    SWEEP_SECTORS = 6;
 constexpr float  SECTOR_DEG    = 7.0f;         // wedge spans ~42°
-constexpr float  WEDGE_STEP_DEG = 1.5f;        // ≈ one re-anchor per tick at 8 s/rev
+constexpr float  WEDGE_STEP_DEG = 0.75f;       // ≈ one re-anchor per 16 ms tick at 8 s/rev
 constexpr int    WEDGE_R       = RADAR_R - 2;  // stay inside the outer ring
 constexpr uint32_t SWEEP_PERIOD_MS = 8000;     // one revolution
 
@@ -490,7 +490,7 @@ void radar_timer_cb(lv_timer_t*) {
         bool crossed = (prev <= b && b < rd_sweep_deg) ||
                        (prev > rd_sweep_deg && (b >= prev || b < rd_sweep_deg));  // wrap
         if (crossed)             rd_glow[i] = 255;
-        else if (rd_glow[i] > 110) rd_glow[i] -= 5;   // ~1 s fade at 33 ms ticks
+        else if (rd_glow[i] > 110) rd_glow[i] -= 3;   // ~0.8 s fade at 16 ms ticks
         lv_obj_set_style_bg_opa(rd_blip[i], rd_glow[i], 0);
         lv_obj_set_style_text_opa(rd_tag[i], rd_glow[i], 0);
         lv_obj_set_style_line_opa(rd_vec[i], rd_glow[i], 0);
@@ -834,9 +834,9 @@ void begin() {
     build_status_screen();
     build_radar_screen();
     build_weather_screen();
-    // 33 ms: the wall-clock-derived sweep angle stays smooth at any tick
-    // rate, and the smaller per-frame redraw keeps flush seams invisible.
-    rd_timer = lv_timer_create(radar_timer_cb, 33, nullptr);
+    // 16 ms: the wedge re-anchors in 0.75° steps — at 33 ms the sector edge
+    // visibly stepped. The wall-clock-derived angle stays correct at any rate.
+    rd_timer = lv_timer_create(radar_timer_cb, 16, nullptr);
     wx_timer = lv_timer_create(weather_timer_cb, 1000, nullptr);
     lv_timer_create(auto_timer_cb, 500, nullptr);
     set_mode(settings::state().mode);
