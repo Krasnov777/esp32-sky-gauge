@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESP Sky Gauge</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>ESP Sky Gauge</h1>
+  <span id="conn" class="dot offline" title="WebSocket state"></span>
+</header>
+
+<main>
+
+  <section class="card">
+    <h2>Mode</h2>
+    <div class="mode-grid">
+      <button class="mode-btn" data-mode="0">
+        <strong>Flight Radar</strong>
+        <span>Live aircraft around you</span>
+      </button>
+      <button class="mode-btn" data-mode="1">
+        <strong>Weather</strong>
+        <span>Current conditions at your location</span>
+      </button>
+    </div>
+  </section>
+
+  <section class="card" id="radarLiveBlock" hidden>
+    <h2>Radar live</h2>
+    <canvas id="radarCanvas" width="320" height="320"></canvas>
+    <p class="hint" id="radarCanvasHint"></p>
+  </section>
+
+  <section class="card" id="radarBlock" hidden>
+    <h2>Flight radar</h2>
+    <div class="grid2">
+      <label>Latitude <input type="number" id="radarLat" step="0.0001" min="-90" max="90" placeholder="51.4700"></label>
+      <label>Longitude <input type="number" id="radarLon" step="0.0001" min="-180" max="180" placeholder="-0.4543"></label>
+      <label>Range (km) <input type="number" id="radarRange" step="10" min="10" max="400" value="100"></label>
+      <label>Update every (s) <input type="number" id="radarPoll" step="1" min="5" max="120" value="10"></label>
+      <label>Theme
+        <select id="radarTheme">
+          <option value="0">Green phosphor</option>
+          <option value="1">Amber</option>
+        </select>
+      </label>
+      <label>Overhead alert (km, 0 = off) <input type="number" id="radarAlert" step="1" min="0" max="50" value="3"></label>
+      <label class="check"><input type="checkbox" id="radarTags" checked> Show callsign tags on blips</label>
+    </div>
+    <div class="row">
+      <button class="primary" id="radarSaveBtn">Save radar settings</button>
+      <span id="radarStatus" class="hint"></span>
+    </div>
+    <p class="hint">Tip: right-click your home in Google Maps and click the coordinates
+      to copy them. The location is shared with Weather mode. Aircraft positions come
+      from <code>adsb.lol</code>, routes from <code>adsbdb.com</code> — the device
+      fetches them itself, no PC needed.</p>
+  </section>
+
+  <section class="card" id="weatherBlock" hidden>
+    <h2>Weather</h2>
+    <p class="hint">Shows current conditions from <code>open-meteo.com</code> at the
+      location configured in the <b>Flight Radar</b> tab (latitude/longitude there
+      — saved once, used by both modes). The device refreshes every 10 minutes.</p>
+  </section>
+
+  <section class="card">
+    <h2>Display</h2>
+    <label>Brightness
+      <input type="range" id="brightness" min="0" max="255" value="200">
+      <output id="brightnessVal">200</output>
+    </label>
+  </section>
+
+  <section class="card">
+    <h2>Network</h2>
+    <div class="grid2">
+      <label>SSID     <input type="text"     id="ssid"     placeholder="MyNetwork" autocomplete="off"></label>
+      <label>Password <input type="password" id="password" placeholder="(leave blank to keep current)" autocomplete="off"></label>
+      <label>Hostname <input type="text"     id="hostname" placeholder="esp-gauge" autocomplete="off"></label>
+    </div>
+    <div class="row">
+      <button class="primary" id="wifiSaveBtn">Save &amp; Reboot</button>
+      <span id="wifiStatus" class="hint"></span>
+    </div>
+    <p class="hint">Saving stores the credentials and reboots the device so it joins
+      the new network. After it reboots, this <code>ESP-Gauge</code> hotspot
+      disappears — reconnect your computer to your normal WiFi, then open
+      <code>http://esp-gauge.local</code> (or the IP shown on the device).</p>
+  </section>
+
+  <section class="card">
+    <h2>Danger zone</h2>
+    <div class="row">
+      <button class="danger" id="rebootBtn">Reboot</button>
+      <button class="danger" id="resetBtn">Factory reset</button>
+    </div>
+  </section>
+
+</main>
+
+<footer><small>ESP32-S3 Sky Gauge · <span id="hostFooter"></span></small></footer>
+<script src="/app.js"></script>
+</body>
+</html>

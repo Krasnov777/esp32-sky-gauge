@@ -1,0 +1,110 @@
+/* ESP Audio Gauge — dark UI */
+:root {
+  --bg: #0d1116;
+  --card: #161b22;
+  --line: #1f2630;
+  --text: #e6edf3;
+  --dim: #8b95a5;
+  --accent: #4ec9b0;
+  --warn: #f5cb5c;
+  --clip: #ef5350;
+  --green: #00cd66;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.4 -apple-system, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; background: rgba(13,17,22,0.95);
+  border-bottom: 1px solid var(--line); backdrop-filter: blur(6px);
+}
+header h1 { font-size: 17px; margin: 0; letter-spacing: .3px; }
+
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--clip); }
+.dot.online  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot.offline { background: var(--clip); }
+
+main { max-width: 720px; margin: 0 auto; padding: 16px; }
+
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+  padding: 16px 18px; margin-bottom: 14px;
+}
+.card h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--dim); font-weight: 600; }
+
+label { display: block; font-size: 13px; color: var(--dim); margin-bottom: 10px; }
+label.check { display: flex; align-items: center; gap: 8px; color: var(--text); }
+input[type=number], input[type=text], input[type=password] {
+  width: 100%; margin-top: 4px;
+  background: #0d1116; border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; color: var(--text); font: inherit;
+}
+input[type=number]:focus, input[type=text]:focus, input[type=password]:focus {
+  outline: none; border-color: var(--accent);
+}
+input[type=range] { width: 100%; margin-top: 4px; accent-color: var(--accent); }
+output { display: inline-block; margin-left: 6px; color: var(--text); font-weight: 600; }
+
+.grid2 {
+  display: grid; gap: 10px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+/* ── Mode tiles ───────────────────────────────────────────────────────────── */
+.mode-grid {
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.mode-btn {
+  display: flex; flex-direction: column; gap: 4px; align-items: flex-start;
+  background: #0d1116; border: 1px solid var(--line); color: var(--text);
+  border-radius: 10px; padding: 12px 14px; cursor: pointer; font: inherit;
+  transition: border-color .12s, background .12s;
+}
+.mode-btn strong { font-size: 14px; }
+.mode-btn span   { font-size: 12px; color: var(--dim); }
+.mode-btn:hover  { border-color: #2c3540; }
+.mode-btn.active { border-color: var(--accent); background: rgba(78,201,176,.08); }
+
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.row { display: flex; gap: 10px; align-items: center; }
+button.danger {
+  background: transparent; color: var(--clip); border: 1px solid var(--clip);
+  border-radius: 8px; padding: 8px 14px; font: inherit; cursor: pointer;
+}
+button.danger:hover { background: rgba(239,83,80,.08); }
+
+button.primary {
+  background: var(--accent); color: #08110e; border: 1px solid var(--accent);
+  border-radius: 8px; padding: 8px 16px; font: inherit; font-weight: 600;
+  cursor: pointer;
+}
+button.primary:hover    { filter: brightness(1.1); }
+button.primary:disabled { opacity: .5; cursor: default; filter: none; }
+
+/* ── Radar live scope ─────────────────────────────────────────────────────── */
+#radarCanvas {
+  display: block; margin: 0 auto;
+  width: min(320px, 100%); aspect-ratio: 1;
+  border-radius: 50%; background: #020803;
+}
+select {
+  width: 100%; margin-top: 4px;
+  background: #0d1116; border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; color: var(--text); font: inherit;
+}
+select:focus { outline: none; border-color: var(--accent); }
+
+.hint code {
+  background: #0d1116; border: 1px solid var(--line); border-radius: 4px;
+  padding: 1px 5px; font-size: 11px;
+}
+.hint { color: var(--dim); font-size: 12px; margin: 6px 0 0; }
+footer { text-align: center; color: var(--dim); padding: 18px 0 30px;
+  font-size: 12px; }
