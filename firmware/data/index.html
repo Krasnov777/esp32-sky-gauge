@@ -62,9 +62,11 @@
 
   <section class="card" id="weatherBlock" hidden>
     <h2>Weather</h2>
-    <p class="hint">Shows current conditions from <code>open-meteo.com</code> at the
-      location configured in the <b>Flight Radar</b> tab (latitude/longitude there
-      — saved once, used by both modes). The device refreshes every 10 minutes.</p>
+    <p class="hint">Shows actual measurements from the nearest
+      <code>buienradar.nl</code> weather station (KNMI network, NL/BE) at the
+      location configured in the <b>Flight Radar</b> tab — saved once, used by
+      both modes. Falls back to <code>open-meteo.com</code> outside station
+      coverage. The device refreshes every 10 minutes.</p>
   </section>
 
   <section class="card">

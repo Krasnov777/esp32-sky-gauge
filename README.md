@@ -27,7 +27,7 @@ configuration.
 | Mode         | What it shows                                                         |
 |--------------|-----------------------------------------------------------------------|
 | Flight radar | Retro PPI scope (green or amber phosphor) of live aircraft around the configured location: rotating sweep with phosphor-decay trail, blips with afterglow + callsign tags + heading vectors, round-number range rings, true-north compass, cycling detail readout (flight, route, altitude ↑↓, speed, distance). Positions are dead-reckoned between polls so blips glide. Configurable overhead alert pulses the scope when traffic flies within N km; emergency squawks (7500/7600/7700) paint red. |
-| Weather      | Current conditions at the same location from Open-Meteo: icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. |
+| Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. |
 
 Mode, location, radar range/theme/alert, brightness, hostname and WiFi
 credentials are configurable from the web UI. The web UI shows only the cards
@@ -163,7 +163,8 @@ Endpoint: `ws://<device>/ws`
 |---|---|---|
 | [adsb.lol](https://api.adsb.lol/docs) | aircraft within radius (`/v2/point/lat/lon/nm`) | free, no key |
 | [adsbdb.com](https://api.adsbdb.com) | callsign → origin/destination route | free, no key |
-| [open-meteo.com](https://open-meteo.com) | current weather (`/v1/forecast`) | free, no key |
+| [buienradar.nl](https://data.buienradar.nl/2.0/feed/json) | current weather — nearest KNMI station measurements (the feed no longer carries station coordinates, so KNMI positions are baked into `weather.cpp`) | free, no key |
+| [open-meteo.com](https://open-meteo.com) | weather fallback outside NL/BE station coverage | free, no key |
 
 Be a good citizen: the default poll intervals (10 s aircraft, 2 lookups/cycle
 routes, 10 min weather) are well within what these community services expect.

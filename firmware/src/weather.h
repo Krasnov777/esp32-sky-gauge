@@ -1,14 +1,20 @@
 // Current-conditions fetcher for Weather mode.
 //
-// Mirrors the radar module's pattern: a FreeRTOS task on core 0 polls
-// Open-Meteo (free, no API key, ~1 KB responses) while Weather mode is
-// active, using the location from settings::state().radar. Refreshes every
-// 10 minutes; the UI thread reads a copy via get().
+// Primary source: buienradar.nl — actual measurements from the nearest
+// KNMI/Buienradar station (NL/BE coverage), with authentic Dutch condition
+// text. Falls back to Open-Meteo (global, model-based) when no station is
+// within range. Both free, no API key. Mirrors the radar module's pattern:
+// a mode-gated FreeRTOS task on core 0, mutex-guarded snapshot, Status enum.
+// Refreshes every 10 minutes; uses the location from settings radar config.
 #pragma once
 
 #include <Arduino.h>
 
 namespace weather {
+
+// Icon classes the UI can draw (LVGL-primitive icon groups, in this order).
+enum class Icon : uint8_t { Sun = 0, Partly, Cloud, Rain, Snow, Thunder, Fog };
+constexpr uint8_t ICON_COUNT = 7;
 
 struct Current {
     float   temp_c;
@@ -16,7 +22,8 @@ struct Current {
     uint8_t humidity;       // %
     float   wind_kmh;
     int16_t wind_dir_deg;   // meteorological, 0 = from north
-    uint8_t code;           // WMO weather code
+    Icon    icon;
+    char    desc[28];       // condition text (Dutch from buienradar, English from fallback)
     bool    valid;
 };
 

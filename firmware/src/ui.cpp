@@ -484,8 +484,15 @@ void radar_timer_cb(lv_timer_t*) {
 // no extra fonts. One hidden group per icon kind; the update timer shows the
 // one matching the current WMO weather code.
 
-enum WxIcon : uint8_t { WX_SUN = 0, WX_PARTLY, WX_CLOUD, WX_RAIN, WX_SNOW,
-                        WX_THUNDER, WX_FOG, WX_ICON_COUNT };
+// Icon classification lives in weather.h; groups are built in enum order.
+constexpr uint8_t WX_SUN     = (uint8_t)weather::Icon::Sun;
+constexpr uint8_t WX_PARTLY  = (uint8_t)weather::Icon::Partly;
+constexpr uint8_t WX_CLOUD   = (uint8_t)weather::Icon::Cloud;
+constexpr uint8_t WX_RAIN    = (uint8_t)weather::Icon::Rain;
+constexpr uint8_t WX_SNOW    = (uint8_t)weather::Icon::Snow;
+constexpr uint8_t WX_THUNDER = (uint8_t)weather::Icon::Thunder;
+constexpr uint8_t WX_FOG     = (uint8_t)weather::Icon::Fog;
+constexpr uint8_t WX_ICON_COUNT = weather::ICON_COUNT;
 
 lv_obj_t* wx_icon[WX_ICON_COUNT] = {};
 lv_obj_t* wx_temp   = nullptr;
@@ -494,28 +501,6 @@ lv_obj_t* wx_line1  = nullptr;
 lv_obj_t* wx_line2  = nullptr;
 lv_obj_t* wx_status = nullptr;
 lv_timer_t* wx_timer = nullptr;
-
-struct WxKind { uint8_t icon; const char* desc; };
-
-WxKind wx_kind(uint8_t code) {
-    switch (code) {
-        case 0:  return {WX_SUN,     "Clear sky"};
-        case 1:  return {WX_PARTLY,  "Mainly clear"};
-        case 2:  return {WX_PARTLY,  "Partly cloudy"};
-        case 3:  return {WX_CLOUD,   "Overcast"};
-        case 45: case 48: return {WX_FOG, "Fog"};
-        case 51: case 53: case 55: return {WX_RAIN, "Drizzle"};
-        case 56: case 57: return {WX_RAIN, "Freezing drizzle"};
-        case 61: case 63: case 65: return {WX_RAIN, "Rain"};
-        case 66: case 67: return {WX_RAIN, "Freezing rain"};
-        case 71: case 73: case 75: case 77: return {WX_SNOW, "Snow"};
-        case 80: case 81: case 82: return {WX_RAIN, "Rain showers"};
-        case 85: case 86: return {WX_SNOW, "Snow showers"};
-        case 95: return {WX_THUNDER, "Thunderstorm"};
-        case 96: case 99: return {WX_THUNDER, "Storm with hail"};
-        default: return {WX_CLOUD, "Clouds"};
-    }
-}
 
 const char* wind_compass(int deg) {
     static const char* dirs[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
@@ -706,16 +691,16 @@ void weather_timer_cb(lv_timer_t*) {
     }
     set_text_if_changed(wx_status, "");
 
-    WxKind k = wx_kind(w.code);
+    uint8_t icon_ix = (uint8_t)w.icon;
     for (uint8_t i = 0; i < WX_ICON_COUNT; i++) {
-        if (i == k.icon) lv_obj_remove_flag(wx_icon[i], LV_OBJ_FLAG_HIDDEN);
-        else             lv_obj_add_flag(wx_icon[i], LV_OBJ_FLAG_HIDDEN);
+        if (i == icon_ix) lv_obj_remove_flag(wx_icon[i], LV_OBJ_FLAG_HIDDEN);
+        else              lv_obj_add_flag(wx_icon[i], LV_OBJ_FLAG_HIDDEN);
     }
 
     char buf[48];
     snprintf(buf, sizeof(buf), "%.0f°", w.temp_c);
     set_text_if_changed(wx_temp, buf);
-    set_text_if_changed(wx_desc, k.desc);
+    set_text_if_changed(wx_desc, w.desc);
 
     snprintf(buf, sizeof(buf), "feels %.0f°  •  %u%%", w.feels_c, w.humidity);
     set_text_if_changed(wx_line1, buf);

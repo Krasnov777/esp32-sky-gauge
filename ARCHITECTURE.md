@@ -401,12 +401,19 @@ Key implementation choices:
 ### 3.8 `weather.{h,cpp}` — current-conditions poller
 
 Mirrors the radar module's pattern (mode-gated core-0 task, mutex-guarded
-snapshot, `Status` enum for the UI), but much lighter: one
-`GET api.open-meteo.com/v1/forecast?...&current=temperature_2m,…` every
-**10 minutes**, ~1 KB response parsed directly from a `String` (no PSRAM
-buffering needed). Failed fetches retry after 20 s; stale data is kept and
-shown rather than blanked. Uses the same `radar.lat/lon` location — there is
-deliberately only one "home position" on the device.
+snapshot, `Status` enum for the UI). Polls every **10 minutes**, retries
+failures after 20 s; stale data is kept and shown rather than blanked. Uses
+the same `radar.lat/lon` location — deliberately one "home position".
+
+Primary source is **buienradar.nl** (`data.buienradar.nl/2.0/feed/json`,
+~36 KB): actual measurements from the KNMI station network, with authentic
+Dutch condition text classified into an icon by keyword matching. The feed
+stopped carrying station coordinates (all 0 as of 2026-06), so the nearest
+station is found by matching `StationId` against a baked-in table of KNMI
+positions (`StationId = 6000 + KNMI STN`). If no station is within 100 km
+(device taken outside NL/BE), it falls back to **Open-Meteo** with a WMO
+weather-code → icon mapping. Both fetched via `net_fetch.{h,cpp}` — the
+shared TLS + PSRAM-buffered + filtered-JSON helper also used by the radar.
 
 ---
 
