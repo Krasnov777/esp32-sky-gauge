@@ -25,8 +25,6 @@ screen with a shower approaching on the 2-hour rain graph.*
             browser (configuration UI + live radar mirror)
 ```
 
-> The project started life as an audio VU meter driven by a PC microphone —
-> those modes were removed in favor of the radar/weather pair.
 
 ## Display modes
 
