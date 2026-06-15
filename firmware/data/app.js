@@ -34,6 +34,7 @@
   ];
   const HA_MAX = 8;                 // device-side page cap (settings::HOME_TILES)
   let haPages = [];                 // [{label, icon, entity}] — dynamic list
+  let haInit = false;               // form loaded from device once (then user-owned)
 
   const iconOptions = HA_ICONS.map(([k, g]) => `<option value="${k}">${g}</option>`).join('');
 
@@ -144,16 +145,21 @@
     el.radarAutoHome.checked = !!(ab & 2);
     radarTheme = s.radar?.theme ?? 0;
 
-    // Home Assistant
+    // Home Assistant. Load the page list from the device only on the FIRST
+    // state — later state messages (e.g. the echo after changing another
+    // setting) must not rebuild the form, or they'd wipe pages the user has
+    // added but not yet saved.
     el.haUrl.value  = s.home?.url ?? '';
     el.haPoll.value = s.home?.poll_s ?? 15;
     el.haToken.placeholder = s.home?.token_set ? '(leave blank to keep current)' : 'long-lived access token';
-    // Load configured pages (those with an entity); keep at least one row.
-    haPages = (s.home?.tiles ?? [])
-      .filter(t => (t.entity ?? '').length > 0)
-      .map(t => ({ label: t.label ?? '', icon: t.icon ?? 'gauge', entity: t.entity ?? '' }));
-    if (haPages.length === 0) haPages = [{ label: '', icon: 'gauge', entity: '' }];
-    renderHaPages();
+    if (!haInit) {
+      haInit = true;
+      haPages = (s.home?.tiles ?? [])
+        .filter(t => (t.entity ?? '').length > 0)
+        .map(t => ({ label: t.label ?? '', icon: t.icon ?? 'gauge', entity: t.entity ?? '' }));
+      if (haPages.length === 0) haPages = [{ label: '', icon: 'gauge', entity: '' }];
+      renderHaPages();
+    }
 
     el.ssid.value     = s.wifi?.ssid     ?? '';
     el.hostname.value = s.wifi?.hostname ?? '';
