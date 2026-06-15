@@ -14,6 +14,8 @@
     radarSaveBtn: $('radarSaveBtn'), radarStatus: $('radarStatus'),
     radarLiveBlock: $('radarLiveBlock'), radarCanvas: $('radarCanvas'),
     radarCanvasHint: $('radarCanvasHint'),
+    haUrl: $('haUrl'), haToken: $('haToken'), haPoll: $('haPoll'),
+    haTiles: $('haTiles'), haSaveBtn: $('haSaveBtn'), haStatus: $('haStatus'),
     ssid: $('ssid'), password: $('password'), hostname: $('hostname'),
     wifiSaveBtn: $('wifiSaveBtn'), wifiStatus: $('wifiStatus'),
     rebootBtn: $('rebootBtn'), resetBtn: $('resetBtn'),
@@ -21,6 +23,24 @@
     hostFooter: $('hostFooter'),
     modeBtns: document.querySelectorAll('.mode-btn'),
   };
+
+  const HA_TYPES = ['temperature', 'climate', 'humidity', 'power', 'battery',
+                    'co2', 'pressure', 'voltage', 'custom'];
+  const HA_TILES = 4;
+  // Build the tile config rows once.
+  for (let i = 0; i < HA_TILES; i++) {
+    const row = document.createElement('div');
+    row.className = 'grid2';
+    row.style.marginTop = '10px';
+    row.innerHTML =
+      `<label>Tile ${i + 1} label <input type="text" id="haLbl${i}" placeholder="Living room"></label>` +
+      `<label>Type <select id="haTyp${i}">` +
+        HA_TYPES.map(t => `<option value="${t}">${t}</option>`).join('') +
+      `</select></label>` +
+      `<label>Entity <input type="text" id="haEnt${i}" placeholder="sensor.living_temperature" autocomplete="off"></label>` +
+      `<label>Secondary entity (optional) <input type="text" id="haEn2${i}" placeholder="sensor.living_humidity" autocomplete="off"></label>`;
+    el.haTiles.appendChild(row);
+  }
 
   let ws = null;
   let backoffMs = 500;
@@ -33,8 +53,9 @@
     0: ['radarLiveBlock', 'radarBlock'],
     1: ['weatherBlock'],
     2: ['radarLiveBlock', 'radarBlock', 'weatherBlock'],   // Auto uses both
+    3: ['homeBlock'],
   };
-  const ALL_MODE_CARDS = ['radarLiveBlock', 'radarBlock', 'weatherBlock'];
+  const ALL_MODE_CARDS = ['radarLiveBlock', 'radarBlock', 'weatherBlock', 'homeBlock'];
 
   function showCardsFor(mode) {
     const show = new Set(MODE_CARDS[mode] || []);
@@ -90,6 +111,19 @@
     el.radarAuto.value   = s.radar?.auto_km ?? 5;
     radarTheme = s.radar?.theme ?? 0;
 
+    // Home Assistant
+    el.haUrl.value  = s.home?.url ?? '';
+    el.haPoll.value = s.home?.poll_s ?? 15;
+    el.haToken.placeholder = s.home?.token_set ? '(leave blank to keep current)' : 'long-lived access token';
+    const tiles = s.home?.tiles ?? [];
+    for (let i = 0; i < HA_TILES; i++) {
+      const t = tiles[i] ?? {};
+      $('haLbl' + i).value = t.label ?? '';
+      $('haTyp' + i).value = t.type ?? 'temperature';
+      $('haEnt' + i).value = t.entity ?? '';
+      $('haEn2' + i).value = t.entity2 ?? '';
+    }
+
     el.ssid.value     = s.wifi?.ssid     ?? '';
     el.hostname.value = s.wifi?.hostname ?? '';
     el.password.placeholder = (s.wifi?.password || '') ? '(leave blank to keep)' : '';
@@ -143,6 +177,28 @@
       }});
       el.radarStatus.textContent = 'Saved.';
       setTimeout(() => { el.radarStatus.textContent = ''; }, 3000);
+    });
+
+    // Home Assistant: explicit save (URL + token + tiles belong together).
+    el.haSaveBtn.addEventListener('click', () => {
+      const home = {
+        url: el.haUrl.value.trim(),
+        poll_s: Number(el.haPoll.value) || 15,
+        tiles: [],
+      };
+      if (el.haToken.value) home.token = el.haToken.value;   // blank = keep current
+      for (let i = 0; i < HA_TILES; i++) {
+        home.tiles.push({
+          label:   $('haLbl' + i).value.trim(),
+          type:    $('haTyp' + i).value,
+          entity:  $('haEnt' + i).value.trim(),
+          entity2: $('haEn2' + i).value.trim(),
+        });
+      }
+      sendConfig({ home });
+      el.haToken.value = '';   // don't keep the secret in the field
+      el.haStatus.textContent = 'Saved.';
+      setTimeout(() => { el.haStatus.textContent = ''; }, 3000);
     });
 
     // WiFi: explicit save (it needs a reboot, so no live auto-commit).

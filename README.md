@@ -33,6 +33,7 @@ screen with a shower approaching on the 2-hour rain graph.*
 | Flight radar | Retro PPI scope (green or amber phosphor) of live aircraft around the configured location: rotating sweep with phosphor-decay trail, blips with afterglow + callsign tags + heading vectors, round-number range rings, true-north compass, cycling detail readout (flight, route, altitude ↑↓, speed, distance). Positions are dead-reckoned between polls so blips glide. Configurable overhead alert pulses the scope when traffic flies within N km; emergency squawks (7500/7600/7700) paint red. |
 | Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. A 2-hour **rain nowcast** bar graph (buienradar raintext, 5-min steps, refreshed every 5 min) appears at the bottom whenever rain is coming. |
 | Auto         | Weather as the resting screen; switches to the radar scope while airborne traffic is within the auto-switch distance (own setting, default 5 km — independent of the overhead-alert pulse distance), and back 30 s after the sky clears. Both pollers stay active. |
+| Home         | Home Assistant entity tiles — up to 4 configurable entities pulled from HA's REST API (`/api/states` with a long-lived token), shown one at a time as big cycling cards (label, value + unit, optional secondary like humidity). A `type` preset per tile sets unit/decimals (temperature, climate, humidity, power, battery, CO₂, pressure, voltage, custom). |
 
 Mode, location, radar range/theme/alert, brightness, hostname and WiFi
 credentials are configurable from the web UI. The web UI shows only the cards
@@ -49,7 +50,7 @@ a canvas.
 ```
 firmware/             PlatformIO project for the ESP32-S3 device
   platformio.ini
-  src/                C++ sources (display, LVGL UI, radar/weather pollers,
+  src/                C++ sources (display, LVGL UI, radar/weather/HA pollers,
                       web server, settings)
   data/               static web UI (uploaded as a LittleFS image)
 ```
@@ -117,8 +118,8 @@ its own Access Point named `ESP-Gauge-XXXX` (XXXX = last 4 hex of the MAC).
 The web UI is served straight from the device at `http://esp-gauge.local` (or
 the IP shown on screen). Cards appear per selected mode:
 
-- **Mode** — three tiles (Flight Radar / Weather / Auto); clicking switches the
-  device *and* which settings cards are shown
+- **Mode** — four tiles (Flight Radar / Weather / Auto / Home); clicking switches
+  the device *and* which settings cards are shown
 - **Radar live** *(radar + auto modes)* — canvas mirror of the on-device scope,
   fed by a WebSocket broadcast, with its own sweep and dead-reckoned blips
 - **Flight radar** *(radar + auto modes)* — latitude/longitude, range (km), poll
@@ -126,6 +127,9 @@ the IP shown on screen). Cards appear per selected mode:
   callsign tags; explicit **Save** button
 - **Weather** *(weather + auto modes)* — info card; the location comes from the
   Flight radar settings
+- **Home Assistant** *(home mode)* — HA base URL, long-lived token (stored
+  write-only, never sent back), poll interval, and 4 entity tiles (label, type
+  preset, primary entity, optional secondary); explicit **Save** button
 - **Display** — backlight brightness + a **Screenshot** button that captures
   exactly what's on the round LCD (LVGL snapshot → 24-bit BMP, served at
   `/shot.bmp`; scriptable: `curl -X POST http://<device>/api/shot && sleep 1 &&
@@ -144,6 +148,9 @@ Endpoint: `ws://<device>/ws`
 ```json
 { "type": "hello" }                                  // request initial state
 { "type": "config", "patch": { "mode": 1, "radar": { "range_km": 50 } } }
+{ "type": "config", "patch": { "home": { "url": "http://homeassistant.local:8123",
+    "token": "<long-lived-token>", "tiles": [ { "label": "Living",
+    "type": "temperature", "entity": "sensor.living_temp" } ] } } }
 { "type": "command", "cmd": "reboot" }
 { "type": "command", "cmd": "factory_reset" }
 ```
@@ -180,9 +187,10 @@ Endpoint: `ws://<device>/ws`
 | [buienradar.nl](https://data.buienradar.nl/2.0/feed/json) | current weather — nearest KNMI station measurements (the feed no longer carries station coordinates, so KNMI positions are baked into `weather.cpp`) | free, no key |
 | buienradar raintext (`gpsgadget.buienradar.nl/data/raintext`) | 2-hour precipitation nowcast, 5-min steps | free, no key |
 | [open-meteo.com](https://open-meteo.com) | weather fallback outside NL/BE station coverage | free, no key |
+| your Home Assistant | entity states (`/api/states/<entity>`) for Home mode | self-hosted; long-lived token |
 
 Be a good citizen: the default poll intervals (10 s aircraft, 2 lookups/cycle
-routes, 10 min weather) are well within what these community services expect.
+routes, 10 min weather, 15 s HA) are well within what these services expect.
 
 ---
 

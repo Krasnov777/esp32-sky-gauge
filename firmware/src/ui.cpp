@@ -2,6 +2,7 @@
 #include "board_config.h"
 #include "radar.h"
 #include "weather.h"
+#include "homeassistant.h"
 
 #include <Arduino.h>
 #include <lvgl.h>
@@ -36,6 +37,9 @@ bool status_active = false;   // boot/status screen is on display
 lv_obj_t* screen_status = nullptr;
 lv_obj_t* screen_radar  = nullptr;
 lv_obj_t* screen_wx     = nullptr;
+lv_obj_t* screen_home   = nullptr;
+
+constexpr lv_color_t COL_ACCENT = LV_COLOR_MAKE(79, 195, 247);   // Home-mode cyan
 
 // Which screen is (being) displayed. In Auto mode this differs from what the
 // settings mode alone implies — the supervisor flips between weather and
@@ -789,6 +793,135 @@ void weather_timer_cb(lv_timer_t*) {
     }
 }
 
+// ── Home Assistant screen ────────────────────────────────────────────────────
+// Mirrors the Frame project's Home mode (HA REST entity tiles), adapted to the
+// round screen: the configured tiles are shown one at a time as big centered
+// cards, cycling every few seconds, with page dots below. Each card: label,
+// big value + unit, optional secondary (humidity-style) line.
+
+lv_obj_t* home_label  = nullptr;
+lv_obj_t* home_value  = nullptr;
+lv_obj_t* home_sec    = nullptr;
+lv_obj_t* home_status = nullptr;
+lv_obj_t* home_dot[settings::HOME_TILES] = {};
+lv_timer_t* home_timer = nullptr;
+int home_ix = 0;
+
+void build_home_screen() {
+    if (screen_home) {
+        lv_obj_clean(screen_home);
+    } else {
+        screen_home = lv_obj_create(nullptr);
+        lv_obj_remove_style_all(screen_home);
+        lv_obj_set_style_bg_color(screen_home, COL_BG, 0);
+        lv_obj_set_style_bg_opa(screen_home, LV_OPA_COVER, 0);
+    }
+
+    home_label = lv_label_create(screen_home);
+    lv_obj_set_style_text_font(home_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(home_label, COL_ACCENT, 0);
+    lv_label_set_text(home_label, "");
+    lv_obj_align(home_label, LV_ALIGN_CENTER, 0, -42);
+
+    home_value = lv_label_create(screen_home);
+    lv_obj_set_style_text_font(home_value, &lv_font_montserrat_48, 0);
+    lv_obj_set_style_text_color(home_value, COL_TEXT, 0);
+    lv_label_set_text(home_value, "");
+    lv_obj_align(home_value, LV_ALIGN_CENTER, 0, 6);
+
+    home_sec = lv_label_create(screen_home);
+    lv_obj_set_style_text_font(home_sec, &lv_font_montserrat_18, 0);
+    lv_obj_set_style_text_color(home_sec, COL_DIM_TEXT, 0);
+    lv_label_set_text(home_sec, "");
+    lv_obj_align(home_sec, LV_ALIGN_CENTER, 0, 48);
+
+    // page dots
+    int n = settings::HOME_TILES;
+    for (int i = 0; i < n; i++) {
+        home_dot[i] = lv_obj_create(screen_home);
+        lv_obj_remove_style_all(home_dot[i]);
+        lv_obj_set_size(home_dot[i], 6, 6);
+        lv_obj_set_style_radius(home_dot[i], LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_bg_color(home_dot[i], COL_DIM_TEXT, 0);
+        lv_obj_set_style_bg_opa(home_dot[i], LV_OPA_COVER, 0);
+        lv_obj_align(home_dot[i], LV_ALIGN_BOTTOM_MID, (i - (n - 1) / 2.0f) * 14, -30);
+        lv_obj_add_flag(home_dot[i], LV_OBJ_FLAG_HIDDEN);
+    }
+
+    home_status = lv_label_create(screen_home);
+    lv_obj_set_style_text_font(home_status, &lv_font_montserrat_14, 0);
+    lv_obj_set_style_text_color(home_status, COL_DIM_TEXT, 0);
+    lv_obj_set_style_text_align(home_status, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_text(home_status, "");
+    lv_obj_align(home_status, LV_ALIGN_CENTER, 0, 0);
+}
+
+void home_timer_cb(lv_timer_t*) {
+    if (shown != screen_home || !screen_home) return;
+
+    const auto& cfg = settings::state().home;
+    auto snap = homeassistant::get();
+
+    // Build the list of configured tile indices.
+    int order[settings::HOME_TILES], n = 0;
+    for (int i = 0; i < settings::HOME_TILES; i++)
+        if (snap.tiles[i].configured) order[n++] = i;
+
+    if (n == 0) {
+        for (auto* d : home_dot) lv_obj_add_flag(d, LV_OBJ_FLAG_HIDDEN);
+        set_text_if_changed(home_label, "");
+        set_text_if_changed(home_value, "");
+        set_text_if_changed(home_sec, "");
+        const char* msg = "";
+        switch (homeassistant::status()) {
+            case homeassistant::Status::NoConfig: msg = "SET HA URL + TOKEN\nin web UI"; break;
+            case homeassistant::Status::NoWifi:   msg = "NO WIFI";   break;
+            case homeassistant::Status::Fetching: msg = "CONNECTING..."; break;
+            case homeassistant::Status::Error:    msg = "HA ERROR";  break;
+            case homeassistant::Status::Ok:       msg = "NO ENTITIES"; break;
+        }
+        set_text_if_changed(home_status, msg);
+        return;
+    }
+    set_text_if_changed(home_status, "");
+
+    // Cycle every 4 s among configured tiles.
+    static uint32_t last_cycle_ms = 0;
+    uint32_t now = millis();
+    if (n > 1 && now - last_cycle_ms >= 4000) { last_cycle_ms = now; home_ix++; }
+    if (home_ix >= n) home_ix = 0;
+    int ti = order[home_ix];
+    const auto& tile = snap.tiles[ti];
+    auto info = homeassistant::type_info(cfg.type[ti]);
+
+    set_text_if_changed(home_label, cfg.label[ti]);
+
+    char buf[40];
+    bool custom = strcmp(cfg.type[ti], "custom") == 0;
+    if (!tile.ok)        snprintf(buf, sizeof(buf), "--");
+    else if (custom)     snprintf(buf, sizeof(buf), "%s", tile.raw);
+    else                 snprintf(buf, sizeof(buf), "%.*f%s", info.decimals, tile.value, info.unit);
+    set_text_if_changed(home_value, buf);
+
+    if (info.secondary && tile.sec_ok) {
+        snprintf(buf, sizeof(buf), "%d%%", (int)(tile.sec_value + 0.5f));
+        set_text_if_changed(home_sec, buf);
+    } else {
+        set_text_if_changed(home_sec, "");
+    }
+
+    // dots
+    for (int i = 0; i < settings::HOME_TILES; i++) {
+        if (i < n) {
+            lv_obj_remove_flag(home_dot[i], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(home_dot[i],
+                i == home_ix ? COL_ACCENT : COL_DIM_TEXT, 0);
+        } else {
+            lv_obj_add_flag(home_dot[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
 // ── Auto mode supervisor ─────────────────────────────────────────────────────
 // Weather is the resting screen; when an airborne aircraft comes within
 // radar.auto_km the scope takes over, and stays for 30 s after the last
@@ -826,6 +959,7 @@ lv_obj_t* target_for_mode() {
     switch (settings::state().mode) {
         case settings::Mode::Radar:   return screen_radar;
         case settings::Mode::Weather: return screen_wx;
+        case settings::Mode::Home:    return screen_home;
         // Auto: keep whatever the supervisor chose; default to weather.
         default: return shown == screen_radar ? screen_radar : screen_wx;
     }
@@ -838,10 +972,12 @@ void begin() {
     build_status_screen();
     build_radar_screen();
     build_weather_screen();
+    build_home_screen();
     // 16 ms: the wedge re-anchors in 0.75° steps — at 33 ms the sector edge
     // visibly stepped. The wall-clock-derived angle stays correct at any rate.
     rd_timer = lv_timer_create(radar_timer_cb, 16, nullptr);
     wx_timer = lv_timer_create(weather_timer_cb, 1000, nullptr);
+    home_timer = lv_timer_create(home_timer_cb, 1000, nullptr);
     lv_timer_create(auto_timer_cb, 500, nullptr);
     set_mode(settings::state().mode);
 }
@@ -860,6 +996,7 @@ void apply_settings() {
     build_status_screen();
     build_radar_screen();
     build_weather_screen();
+    build_home_screen();
     current = settings::state().mode;
     lv_obj_t* target = status_active ? screen_status : target_for_mode();
     shown = nullptr;

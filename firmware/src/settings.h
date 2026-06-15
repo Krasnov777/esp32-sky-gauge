@@ -12,6 +12,26 @@ enum class Mode : uint8_t {
     Weather = 1,  // current conditions (buienradar/Open-Meteo) at the same location
     Auto = 2,     // weather by default; switches to radar while traffic is
                   // within radar.auto_km, back 30 s after the sky clears
+    Home = 3,     // Home Assistant entity tiles (REST /api/states + token)
+};
+
+constexpr int HOME_TILES = 4;   // configurable HA entity cards (mirror of Frame)
+
+struct HomeConfig {
+    // Home Assistant REST integration. Token is a long-lived access token —
+    // write-only: never returned by to_json() (a `token_set` bool is exposed
+    // instead). url is e.g. "http://homeassistant.local:8123" (use the IP if
+    // the .local name doesn't resolve from the ESP).
+    char url[96]     = "";
+    char token[224]  = "";       // HA long-lived tokens are ~180-char JWTs
+    uint16_t poll_s  = 15;       // entity refresh interval
+
+    // Per-tile config. `type` is a preset key bundling unit + decimals +
+    // whether a secondary (humidity-style) value is shown. entity2 is optional.
+    char type[HOME_TILES][16]    = {"temperature", "temperature", "humidity", "power"};
+    char label[HOME_TILES][20]   = {"Living", "Bedroom", "Humidity", "Power"};
+    char entity[HOME_TILES][48]  = {"", "", "", ""};
+    char entity2[HOME_TILES][48] = {"", "", "", ""};
 };
 
 struct RadarConfig {
@@ -39,6 +59,7 @@ struct Snapshot {
     uint8_t  brightness       = 255;
 
     RadarConfig radar;
+    HomeConfig  home;
 };
 
 // Lifecycle
@@ -52,6 +73,7 @@ Snapshot& state();
 // Apply a JSON patch onto the snapshot. Returns true if anything changed.
 // Recognized keys: mode, brightness,
 //                  radar.{lat,lon,range_km,poll_s,show_tags,theme,alert_km,auto_km},
+//                  home.{url,token,poll_s,tiles:[{type,label,entity,entity2}]},
 //                  wifi.{ssid,password,hostname}.
 bool apply_json(JsonVariantConst patch);
 

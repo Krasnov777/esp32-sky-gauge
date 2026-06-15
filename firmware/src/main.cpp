@@ -11,6 +11,7 @@
 #include "web_server.h"
 #include "radar.h"
 #include "weather.h"
+#include "homeassistant.h"
 #include "net_lock.h"
 
 namespace {
@@ -140,6 +141,7 @@ void setup() {
     setup_ota();
     radar::begin();     // pollers idle until their mode is active
     weather::begin();
+    homeassistant::begin();
 
     // Let the user see the IP for a moment before switching to their mode.
     uint32_t t0 = millis();

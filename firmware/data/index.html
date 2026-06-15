@@ -29,6 +29,10 @@
         <strong>Auto</strong>
         <span>Weather — flips to radar when traffic is overhead</span>
       </button>
+      <button class="mode-btn" data-mode="3">
+        <strong>Home</strong>
+        <span>Home Assistant entity tiles</span>
+      </button>
     </div>
   </section>
 
@@ -74,6 +78,26 @@
       location configured in the <b>Flight Radar</b> tab — saved once, used by
       both modes. Falls back to <code>open-meteo.com</code> outside station
       coverage. The device refreshes every 10 minutes.</p>
+  </section>
+
+  <section class="card" id="homeBlock" hidden>
+    <h2>Home Assistant</h2>
+    <div class="grid2">
+      <label>HA base URL <input type="text" id="haUrl" placeholder="http://homeassistant.local:8123" autocomplete="off"></label>
+      <label>Long-lived token <input type="password" id="haToken" placeholder="(leave blank to keep current)" autocomplete="off"></label>
+      <label>Update every (s) <input type="number" id="haPoll" step="1" min="5" max="600" value="15"></label>
+    </div>
+    <div id="haTiles"></div>
+    <div class="row">
+      <button class="primary" id="haSaveBtn">Save Home settings</button>
+      <span id="haStatus" class="hint"></span>
+    </div>
+    <p class="hint">The device polls Home Assistant's REST API
+      (<code>/api/states/&lt;entity&gt;</code>) with your token. Create a
+      long-lived token in HA → your profile → Security. Each tile shows one
+      entity; the round screen cycles through configured tiles. Use the device
+      IP in the URL if <code>homeassistant.local</code> doesn't resolve. Token
+      is stored write-only and never sent back to the browser.</p>
   </section>
 
   <section class="card">

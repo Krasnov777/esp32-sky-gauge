@@ -52,6 +52,17 @@ void begin() {
     load_scalar("r_thm",  snap.radar.theme);
     load_scalar("r_alrt", snap.radar.alert_km);
     load_scalar("r_auto", snap.radar.auto_km);
+
+    load_string("h_url", snap.home.url,   sizeof(snap.home.url));
+    load_string("h_tok", snap.home.token, sizeof(snap.home.token));
+    load_scalar("h_poll", snap.home.poll_s);
+    for (int i = 0; i < HOME_TILES; i++) {
+        char k[8];
+        snprintf(k, sizeof(k), "h%dtyp", i); load_string(k, snap.home.type[i],    sizeof(snap.home.type[i]));
+        snprintf(k, sizeof(k), "h%dlbl", i); load_string(k, snap.home.label[i],   sizeof(snap.home.label[i]));
+        snprintf(k, sizeof(k), "h%dent", i); load_string(k, snap.home.entity[i],  sizeof(snap.home.entity[i]));
+        snprintf(k, sizeof(k), "h%den2", i); load_string(k, snap.home.entity2[i], sizeof(snap.home.entity2[i]));
+    }
 }
 
 void save() {
@@ -70,6 +81,17 @@ void save() {
     prefs.putUChar("r_thm",  snap.radar.theme);
     prefs.putUShort("r_alrt", snap.radar.alert_km);
     prefs.putUShort("r_auto", snap.radar.auto_km);
+
+    prefs.putString("h_url", snap.home.url);
+    prefs.putString("h_tok", snap.home.token);
+    prefs.putUShort("h_poll", snap.home.poll_s);
+    for (int i = 0; i < HOME_TILES; i++) {
+        char k[8];
+        snprintf(k, sizeof(k), "h%dtyp", i); prefs.putString(k, snap.home.type[i]);
+        snprintf(k, sizeof(k), "h%dlbl", i); prefs.putString(k, snap.home.label[i]);
+        snprintf(k, sizeof(k), "h%dent", i); prefs.putString(k, snap.home.entity[i]);
+        snprintf(k, sizeof(k), "h%den2", i); prefs.putString(k, snap.home.entity2[i]);
+    }
 }
 
 void reset_to_defaults() {
@@ -105,7 +127,7 @@ bool apply_json(JsonVariantConst patch) {
 
     if (patch["mode"].is<uint8_t>() || patch["mode"].is<int>()) {
         uint8_t m = patch["mode"].as<uint8_t>();
-        if (m <= static_cast<uint8_t>(Mode::Auto) &&
+        if (m <= static_cast<uint8_t>(Mode::Home) &&
             static_cast<uint8_t>(snap.mode) != m) {
             snap.mode = static_cast<Mode>(m);
             changed = true;
@@ -131,6 +153,24 @@ bool apply_json(JsonVariantConst patch) {
         snap.radar.auto_km  = constrain(snap.radar.auto_km, 0, 400);
     }
 
+    JsonVariantConst h = patch["home"];
+    if (!h.isNull()) {
+        changed |= maybe_set_str(h["url"],   snap.home.url,   sizeof(snap.home.url));
+        changed |= maybe_set_str(h["token"], snap.home.token, sizeof(snap.home.token));
+        changed |= maybe_set<uint16_t>(h["poll_s"], snap.home.poll_s);
+        snap.home.poll_s = constrain(snap.home.poll_s, 5, 600);
+        JsonArrayConst tiles = h["tiles"];
+        if (!tiles.isNull()) {
+            for (int i = 0; i < HOME_TILES && i < (int)tiles.size(); i++) {
+                JsonVariantConst t = tiles[i];
+                changed |= maybe_set_str(t["type"],    snap.home.type[i],    sizeof(snap.home.type[i]));
+                changed |= maybe_set_str(t["label"],   snap.home.label[i],   sizeof(snap.home.label[i]));
+                changed |= maybe_set_str(t["entity"],  snap.home.entity[i],  sizeof(snap.home.entity[i]));
+                changed |= maybe_set_str(t["entity2"], snap.home.entity2[i], sizeof(snap.home.entity2[i]));
+            }
+        }
+    }
+
     JsonVariantConst w = patch["wifi"];
     if (!w.isNull()) {
         changed |= maybe_set_str(w["ssid"],     snap.wifi_ssid,     sizeof(snap.wifi_ssid));
@@ -154,6 +194,20 @@ void to_json(JsonObject out, bool include_secrets) {
     r["theme"]     = snap.radar.theme;
     r["alert_km"]  = snap.radar.alert_km;
     r["auto_km"]   = snap.radar.auto_km;
+
+    JsonObject hh = out["home"].to<JsonObject>();
+    hh["url"]       = snap.home.url;
+    hh["token_set"] = strlen(snap.home.token) > 0;   // never expose the token
+    hh["poll_s"]    = snap.home.poll_s;
+    if (include_secrets) hh["token"] = snap.home.token;
+    JsonArray tiles = hh["tiles"].to<JsonArray>();
+    for (int i = 0; i < HOME_TILES; i++) {
+        JsonObject t = tiles.add<JsonObject>();
+        t["type"]    = snap.home.type[i];
+        t["label"]   = snap.home.label[i];
+        t["entity"]  = snap.home.entity[i];
+        t["entity2"] = snap.home.entity2[i];
+    }
 
     JsonObject w = out["wifi"].to<JsonObject>();
     w["ssid"]     = snap.wifi_ssid;

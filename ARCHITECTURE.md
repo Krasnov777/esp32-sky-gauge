@@ -65,11 +65,13 @@ esp-lcd-project/
 │   │   ├── lv_conf.h                  LVGL 9 build-time configuration
 │   │   ├── display.{h,cpp}            LovyanGFX panel + LVGL flush callback
 │   │   ├── settings.{h,cpp}           NVS-backed config + JSON in/out
-│   │   ├── ui.{h,cpp}                 LVGL screens (radar scope, weather, boot status)
+│   │   ├── ui.{h,cpp}                 LVGL screens (radar scope, weather, home, boot status)
 │   │   ├── radar.{h,cpp}              poller for Radar mode (adsb.lol + adsbdb)
 │   │   ├── weather.{h,cpp}            poller for Weather mode (buienradar, Open-Meteo fallback)
+│   │   ├── homeassistant.{h,cpp}      poller for Home mode (HA REST /api/states + token)
 │   │   ├── net_fetch.{h,cpp}          shared HTTPS fetcher (TLS lock + PSRAM buffer + JSON filter)
 │   │   ├── net_lock.h                 mutex: max one TLS connection at a time
+│   │   ├── screenshot.{h,cpp}         on-demand LVGL snapshot → BMP at /shot.bmp
 │   │   └── web_server.{h,cpp}         AsyncWebServer routes + WebSocket
 │   └── data/                          Uploaded to LittleFS as the web UI
 │       ├── index.html
@@ -91,6 +93,7 @@ flowchart TB
   web["web_server.{h,cpp}<br/>HTTP + WS"]
   radar["radar.{h,cpp}<br/>HTTPS poller (core 0)"]
   weather["weather.{h,cpp}<br/>HTTPS poller (core 0)"]
+  homeassistant["homeassistant.{h,cpp}<br/>HA REST poller (core 0)"]
 
   board["board_config.h<br/>pin map"]
   lvconf["lv_conf.h<br/>LVGL build cfg"]
@@ -101,11 +104,14 @@ flowchart TB
   main --> web
   main --> radar
   main --> weather
+  main --> homeassistant
 
   ui --> radar
   ui --> weather
+  ui --> homeassistant
   radar --> settings
   weather --> settings
+  homeassistant --> settings
   web --> radar
 
   display -.uses.-> board
@@ -197,6 +203,7 @@ classDiagram
     +Mode mode
     +uint8 brightness
     +RadarConfig radar
+    +HomeConfig home
   }
   class RadarConfig {
     +float lat
@@ -208,7 +215,17 @@ classDiagram
     +uint16 alert_km
     +uint16 auto_km
   }
+  class HomeConfig {
+    +char url[96]
+    +char token[224]
+    +uint16 poll_s
+    +char type[4][16]
+    +char label[4][20]
+    +char entity[4][48]
+    +char entity2[4][48]
+  }
   Snapshot *-- RadarConfig
+  Snapshot *-- HomeConfig
 ```
 
 #### Why a single snapshot
@@ -239,13 +256,14 @@ the caller uses that to decide whether to call `save()` + re-render.
 
 ### 3.4 `ui.{h,cpp}` — LVGL widget trees
 
-Three screens: one per mode, plus an internal boot/status screen (shown during
+Screens: one per mode, plus an internal boot/status screen (shown during
 startup so WiFi messages are readable; not user-selectable):
 
 | Screen | Widgets |
 |---|---|
 | `Radar`   | range rings (round-distance steps + rim) + crosshair + cardinal ticks/"N" + 21× `lv_line` sweep (bright edge + fading trail) + center hub + 12× blip pools (`lv_obj` dot, `lv_line` heading vector, `lv_label` tag) + labels (track count, range marks, focus readout ×2, status) |
 | `Weather` | 7 icon groups built from LVGL primitives (sun/partly/cloud/rain/snow/thunder/fog — circles + lines, no image assets) + labels (temp 48 pt, description, feels/humidity, wind) + 24× rain-nowcast bars (bottom edge, hidden when dry) + status |
+| `Home`    | one big card cycling through configured HA tiles (label 24 pt accent, value 48 pt, secondary 18 pt) + 4 page dots + status. Mirrors the Frame's Home mode data, laid out as cycling cards for the round screen |
 | status    | 3× `lv_label` (title, line1, line2) — boot + OTA-progress messages |
 
 All screens are built once during `ui::begin()` (they're cheap), kept around as
@@ -438,6 +456,30 @@ feeds the weather screen's bottom bar graph, which only appears when any step
 exceeds the light-rain threshold. The poller runs in Weather **and** Auto
 modes (Auto rests on the weather screen); likewise the radar poller runs in
 Radar and Auto modes — the TLS lock keeps the two from overlapping.
+
+### 3.9 `homeassistant.{h,cpp}` — Home Assistant entity poller
+
+Mirrors the weather module (mode-gated core-0 task, mutex-guarded snapshot,
+`Status` enum). Active only in **Home** mode. Each poll cycle (`home.poll_s`,
+default 15 s) fetches up to `HOME_TILES` (4) configured entities:
+`GET {home.url}/api/states/{entity}` with `Authorization: Bearer {token}`,
+parsing the `state` field as a number (and keeping the raw string for the
+`custom` type / non-numeric entities). A tile may name a second entity for a
+humidity-style secondary value. Fetches go through `net::http_get_text(...,
+bearer)` — the shared helper grew a scheme-aware (http/https) bearer-capable
+text GET, still under the global net lock so HA traffic never races the
+radar/weather TLS handshakes.
+
+Config lives in `settings::HomeConfig`: `url`, write-only `token` (never
+returned by `to_json` — a `token_set` bool is exposed instead), `poll_s`, and
+per-tile `type`/`label`/`entity`/`entity2`. The `type` key is a preset bundling
+unit + decimals + whether a secondary is shown (temperature, climate, humidity,
+power, battery, co2, pressure, voltage, custom) — the same catalog idea as the
+Frame project's Home mode, adapted from its 4.7" 2×2 grid to the round screen's
+cycling single-card layout (see §3.4).
+
+This integration mirrors the sibling **LilyGo T5 "Frame"** project's Home mode;
+the data contract (HA REST + long-lived token + typed entity tiles) is the same.
 
 ---
 

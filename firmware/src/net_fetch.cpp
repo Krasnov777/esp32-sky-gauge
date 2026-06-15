@@ -2,6 +2,8 @@
 #include "net_lock.h"
 
 #include <Arduino.h>
+#include <WiFi.h>
+#include <WiFiClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 
@@ -101,14 +103,26 @@ bool http_get_json(const char* url, JsonDocument& doc, JsonDocument& filter) {
     return true;
 }
 
-bool http_get_text(const char* url, char* out, size_t cap) {
+bool http_get_text(const char* url, char* out, size_t cap, const char* bearer) {
     netlock::Guard one_tls_at_a_time;
-    WiFiClientSecure client;
-    client.setInsecure();
+    // Pick transport by scheme — Home Assistant is usually plain http on the LAN.
+    WiFiClient      plain;
+    WiFiClientSecure secure;
+    bool https = strncmp(url, "https:", 6) == 0;
+    if (https) secure.setInsecure();
+
     HTTPClient http;
     http.setConnectTimeout(5000);
     http.setTimeout(8000);
-    if (!http.begin(client, url)) return false;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    bool ok = https ? http.begin(secure, url) : http.begin(plain, url);
+    if (!ok) return false;
+
+    if (bearer && bearer[0]) {
+        String auth = "Bearer ";
+        auth += bearer;
+        http.addHeader("Authorization", auth);
+    }
 
     int code = http.GET();
     if (code != HTTP_CODE_OK) {

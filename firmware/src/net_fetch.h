@@ -16,9 +16,10 @@ namespace net {
 // Returns false on connection/HTTP/parse failure (already logged).
 bool http_get_json(const char* url, JsonDocument& doc, JsonDocument& filter);
 
-// GET `url` and copy the (small, plain-text) body into `out`.
-// Returns false on connection/HTTP failure.
-bool http_get_text(const char* url, char* out, size_t cap);
+// GET `url` and copy the (small, plain-text) body into `out`. Handles both
+// http and https by scheme. Pass `bearer` to send an Authorization: Bearer
+// header (for Home Assistant's REST API). Returns false on connection/HTTP failure.
+bool http_get_text(const char* url, char* out, size_t cap, const char* bearer = nullptr);
 
 // Allocator that prefers PSRAM — pass to JsonDocument for large documents.
 ArduinoJson::Allocator* psram_allocator();
