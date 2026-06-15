@@ -15,7 +15,7 @@ enum class Mode : uint8_t {
     Home = 3,     // Home Assistant entity tiles (REST /api/states + token)
 };
 
-constexpr int HOME_TILES = 4;   // configurable HA entity cards (mirror of Frame)
+constexpr int HOME_TILES = 5;   // one HA entity per page; 5 pages on the round screen
 
 struct HomeConfig {
     // Home Assistant REST integration. Token is a long-lived access token —
@@ -27,11 +27,13 @@ struct HomeConfig {
     uint16_t poll_s  = 15;       // entity refresh interval
 
     // Per-tile config. `type` is a preset key bundling unit + decimals +
-    // whether a secondary (humidity-style) value is shown. entity2 is optional.
-    char type[HOME_TILES][16]    = {"temperature", "temperature", "humidity", "power"};
-    char label[HOME_TILES][20]   = {"Living", "Bedroom", "Humidity", "Power"};
-    char entity[HOME_TILES][48]  = {"", "", "", ""};
-    char entity2[HOME_TILES][48] = {"", "", "", ""};
+    // whether a secondary (humidity-style) value is shown. `icon` selects a
+    // drawn glyph ("auto" = derive from type). entity2 is optional.
+    char type[HOME_TILES][16]    = {"temperature", "temperature", "humidity", "power", "battery"};
+    char icon[HOME_TILES][16]    = {"auto", "auto", "auto", "auto", "auto"};
+    char label[HOME_TILES][20]   = {"Living", "Bedroom", "Humidity", "Power", "Battery"};
+    char entity[HOME_TILES][48]  = {"", "", "", "", ""};
+    char entity2[HOME_TILES][48] = {"", "", "", "", ""};
 };
 
 struct RadarConfig {
@@ -46,6 +48,7 @@ struct RadarConfig {
     uint8_t  theme      = 0;      // 0 = green phosphor, 1 = amber
     uint16_t alert_km   = 3;      // pin focus + pulse when traffic this close; 0 = off
     uint16_t auto_km    = 5;      // Auto mode: show radar while traffic this close; 0 = off
+    uint8_t  auto_base  = 0;      // Auto resting screen: 0 = Weather, 1 = Home
 };
 
 struct Snapshot {
@@ -73,7 +76,7 @@ Snapshot& state();
 // Apply a JSON patch onto the snapshot. Returns true if anything changed.
 // Recognized keys: mode, brightness,
 //                  radar.{lat,lon,range_km,poll_s,show_tags,theme,alert_km,auto_km},
-//                  home.{url,token,poll_s,tiles:[{type,label,entity,entity2}]},
+//                  home.{url,token,poll_s,tiles:[{type,icon,label,entity,entity2}]},
 //                  wifi.{ssid,password,hostname}.
 bool apply_json(JsonVariantConst patch);
 

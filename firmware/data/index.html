@@ -59,6 +59,12 @@
         <input type="number" id="radarAlert" step="1" min="0" max="50" value="3"></label>
       <label>Auto-mode switch distance (km, 0 = off)
         <input type="number" id="radarAuto" step="1" min="0" max="400" value="5"></label>
+      <label>Auto resting screen
+        <select id="radarAutoBase">
+          <option value="0">Weather</option>
+          <option value="1">Home</option>
+        </select>
+      </label>
       <label class="check"><input type="checkbox" id="radarTags" checked> Show callsign tags on blips</label>
     </div>
     <div class="row">

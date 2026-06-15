@@ -278,9 +278,10 @@ void task_fn(void*) {
     for (;;) {
         const auto& cfg = settings::state();
 
-        // Auto mode shows weather as its resting screen, so keep data fresh.
+        // Active in Weather mode, and in Auto mode when Weather is the
+        // resting screen (auto_base == 0).
         bool active = cfg.mode == settings::Mode::Weather ||
-                      cfg.mode == settings::Mode::Auto;
+                      (cfg.mode == settings::Mode::Auto && cfg.radar.auto_base == 0);
         if (!active) {
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;

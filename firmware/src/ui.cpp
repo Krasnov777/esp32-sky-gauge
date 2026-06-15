@@ -799,6 +799,17 @@ void weather_timer_cb(lv_timer_t*) {
 // cards, cycling every few seconds, with page dots below. Each card: label,
 // big value + unit, optional secondary (humidity-style) line.
 
+// One entity per page (up to HOME_TILES pages), each with a selectable drawn
+// icon from a small pool — same primitive-icon approach as Weather mode.
+constexpr lv_color_t COL_ORANGE = LV_COLOR_MAKE(255, 140, 0);
+
+enum HomeIcon : uint8_t { HI_THERMO = 0, HI_DROPLET, HI_BOLT, HI_BATTERY, HI_SUN,
+                          HI_HOUSE, HI_GAUGE, HI_FIRE, HI_SNOW, HI_BULB, HI_COUNT };
+const char* const HOME_ICON_KEYS[HI_COUNT] = {
+    "thermometer", "humidity", "power", "battery", "sun",
+    "home", "gauge", "fire", "snow", "bulb" };
+
+lv_obj_t* home_ico[HI_COUNT] = {};
 lv_obj_t* home_label  = nullptr;
 lv_obj_t* home_value  = nullptr;
 lv_obj_t* home_sec    = nullptr;
@@ -806,6 +817,119 @@ lv_obj_t* home_status = nullptr;
 lv_obj_t* home_dot[settings::HOME_TILES] = {};
 lv_timer_t* home_timer = nullptr;
 int home_ix = 0;
+
+// small primitive helpers for the icon pool
+lv_obj_t* home_rect(lv_obj_t* p, int w, int h, int x, int y, lv_color_t c, bool fill) {
+    lv_obj_t* o = lv_obj_create(p);
+    lv_obj_remove_style_all(o);
+    lv_obj_set_size(o, w, h);
+    lv_obj_set_pos(o, x, y);
+    lv_obj_set_style_radius(o, 2, 0);
+    if (fill) { lv_obj_set_style_bg_color(o, c, 0); lv_obj_set_style_bg_opa(o, LV_OPA_COVER, 0); }
+    else      { lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, 0);
+                lv_obj_set_style_border_width(o, 2, 0); lv_obj_set_style_border_color(o, c, 0); }
+    return o;
+}
+lv_obj_t* home_ring(lv_obj_t* p, int d, int x, int y, lv_color_t c) {
+    lv_obj_t* o = lv_obj_create(p);
+    lv_obj_remove_style_all(o);
+    lv_obj_set_size(o, d, d);
+    lv_obj_set_pos(o, x, y);
+    lv_obj_set_style_radius(o, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_opa(o, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(o, 3, 0);
+    lv_obj_set_style_border_color(o, c, 0);
+    return o;
+}
+
+// auto-icon derived from a tile's type preset key
+HomeIcon home_auto_icon(const char* type) {
+    if (!strcmp(type, "temperature") || !strcmp(type, "climate")) return HI_THERMO;
+    if (!strcmp(type, "humidity"))                                return HI_DROPLET;
+    if (!strcmp(type, "power") || !strcmp(type, "voltage"))       return HI_BOLT;
+    if (!strcmp(type, "battery"))                                 return HI_BATTERY;
+    if (!strcmp(type, "custom"))                                  return HI_HOUSE;
+    return HI_GAUGE;   // co2, pressure, fallback
+}
+
+HomeIcon home_icon_for(const char* iconKey, const char* type) {
+    if (!iconKey[0] || !strcmp(iconKey, "auto")) return home_auto_icon(type);
+    for (uint8_t i = 0; i < HI_COUNT; i++)
+        if (!strcmp(iconKey, HOME_ICON_KEYS[i])) return (HomeIcon)i;
+    return home_auto_icon(type);
+}
+
+void build_home_icons() {
+    auto grp = []() {
+        lv_obj_t* g = lv_obj_create(screen_home);
+        lv_obj_remove_style_all(g);
+        lv_obj_set_size(g, 64, 52);
+        lv_obj_align(g, LV_ALIGN_TOP_MID, 0, 24);
+        lv_obj_add_flag(g, LV_OBJ_FLAG_HIDDEN);
+        return g;
+    };
+    static lv_point_precise_t P[HI_COUNT][8][2];   // per-icon line storage
+
+    // thermometer
+    { lv_obj_t* g = home_ico[HI_THERMO] = grp();
+      P[HI_THERMO][0][0] = {32, 8}; P[HI_THERMO][0][1] = {32, 36};
+      wx_line(g, P[HI_THERMO][0], 2, COL_RED, 8);
+      wx_circle(g, 18, 23, 33, COL_RED); }
+    // droplet (humidity)
+    { lv_obj_t* g = home_ico[HI_DROPLET] = grp();
+      wx_circle(g, 20, 22, 26, COL_RAIN);
+      P[HI_DROPLET][0][0] = {24, 32}; P[HI_DROPLET][0][1] = {32, 8};
+      P[HI_DROPLET][1][0] = {40, 32}; P[HI_DROPLET][1][1] = {32, 8};
+      wx_line(g, P[HI_DROPLET][0], 2, COL_RAIN, 3);
+      wx_line(g, P[HI_DROPLET][1], 2, COL_RAIN, 3); }
+    // bolt (power)
+    { lv_obj_t* g = home_ico[HI_BOLT] = grp();
+      static lv_point_precise_t b[4] = {{38, 6}, {26, 26}, {36, 26}, {24, 48}};
+      wx_line(g, b, 4, COL_SUN, 5); }
+    // battery
+    { lv_obj_t* g = home_ico[HI_BATTERY] = grp();
+      home_rect(g, 38, 22, 13, 16, COL_GREEN, false);
+      home_rect(g, 4, 8, 51, 23, COL_GREEN, true);
+      home_rect(g, 24, 14, 17, 20, COL_GREEN, true); }
+    // sun
+    { lv_obj_t* g = home_ico[HI_SUN] = grp();
+      for (int i = 0; i < 8; i++) {
+          float a = i * 45.0f * (float)M_PI / 180.0f;
+          P[HI_SUN][i][0] = {(lv_value_precise_t)(32 + 16 * cosf(a)), (lv_value_precise_t)(26 + 16 * sinf(a))};
+          P[HI_SUN][i][1] = {(lv_value_precise_t)(32 + 24 * cosf(a)), (lv_value_precise_t)(26 + 24 * sinf(a))};
+          wx_line(g, P[HI_SUN][i], 2, COL_SUN, 3);
+      }
+      wx_circle(g, 24, 20, 14, COL_SUN); }
+    // house
+    { lv_obj_t* g = home_ico[HI_HOUSE] = grp();
+      static lv_point_precise_t roof[3] = {{10, 26}, {32, 6}, {54, 26}};
+      wx_line(g, roof, 3, COL_ACCENT, 4);
+      home_rect(g, 28, 18, 18, 26, COL_ACCENT, false); }
+    // gauge
+    { lv_obj_t* g = home_ico[HI_GAUGE] = grp();
+      home_ring(g, 40, 12, 6, COL_TEXT);
+      P[HI_GAUGE][0][0] = {32, 26}; P[HI_GAUGE][0][1] = {46, 12};
+      wx_line(g, P[HI_GAUGE][0], 2, COL_TEXT, 3);
+      wx_circle(g, 8, 28, 22, COL_TEXT); }
+    // fire
+    { lv_obj_t* g = home_ico[HI_FIRE] = grp();
+      wx_circle(g, 22, 21, 22, COL_ORANGE);
+      P[HI_FIRE][0][0] = {32, 4}; P[HI_FIRE][0][1] = {24, 24};
+      wx_line(g, P[HI_FIRE][0], 2, COL_ORANGE, 4);
+      wx_circle(g, 10, 27, 30, COL_SUN); }
+    // snow (snowflake)
+    { lv_obj_t* g = home_ico[HI_SNOW] = grp();
+      static lv_point_precise_t s0[2] = {{16, 26}, {48, 26}};
+      static lv_point_precise_t s1[2] = {{20, 14}, {44, 38}};
+      static lv_point_precise_t s2[2] = {{44, 14}, {20, 38}};
+      wx_line(g, s0, 2, COL_SNOW, 3);
+      wx_line(g, s1, 2, COL_SNOW, 3);
+      wx_line(g, s2, 2, COL_SNOW, 3); }
+    // bulb
+    { lv_obj_t* g = home_ico[HI_BULB] = grp();
+      wx_circle(g, 24, 20, 8, COL_SUN);
+      home_rect(g, 12, 8, 26, 32, COL_DIM_TEXT, true); }
+}
 
 void build_home_screen() {
     if (screen_home) {
@@ -817,23 +941,25 @@ void build_home_screen() {
         lv_obj_set_style_bg_opa(screen_home, LV_OPA_COVER, 0);
     }
 
+    build_home_icons();
+
     home_label = lv_label_create(screen_home);
     lv_obj_set_style_text_font(home_label, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(home_label, COL_ACCENT, 0);
     lv_label_set_text(home_label, "");
-    lv_obj_align(home_label, LV_ALIGN_CENTER, 0, -42);
+    lv_obj_align(home_label, LV_ALIGN_CENTER, 0, -6);
 
     home_value = lv_label_create(screen_home);
     lv_obj_set_style_text_font(home_value, &lv_font_montserrat_48, 0);
     lv_obj_set_style_text_color(home_value, COL_TEXT, 0);
     lv_label_set_text(home_value, "");
-    lv_obj_align(home_value, LV_ALIGN_CENTER, 0, 6);
+    lv_obj_align(home_value, LV_ALIGN_CENTER, 0, 38);
 
     home_sec = lv_label_create(screen_home);
     lv_obj_set_style_text_font(home_sec, &lv_font_montserrat_18, 0);
     lv_obj_set_style_text_color(home_sec, COL_DIM_TEXT, 0);
     lv_label_set_text(home_sec, "");
-    lv_obj_align(home_sec, LV_ALIGN_CENTER, 0, 48);
+    lv_obj_align(home_sec, LV_ALIGN_CENTER, 0, 76);
 
     // page dots
     int n = settings::HOME_TILES;
@@ -844,7 +970,7 @@ void build_home_screen() {
         lv_obj_set_style_radius(home_dot[i], LV_RADIUS_CIRCLE, 0);
         lv_obj_set_style_bg_color(home_dot[i], COL_DIM_TEXT, 0);
         lv_obj_set_style_bg_opa(home_dot[i], LV_OPA_COVER, 0);
-        lv_obj_align(home_dot[i], LV_ALIGN_BOTTOM_MID, (i - (n - 1) / 2.0f) * 14, -30);
+        lv_obj_align(home_dot[i], LV_ALIGN_BOTTOM_MID, (i - (n - 1) / 2.0f) * 14, -18);
         lv_obj_add_flag(home_dot[i], LV_OBJ_FLAG_HIDDEN);
     }
 
@@ -869,6 +995,7 @@ void home_timer_cb(lv_timer_t*) {
 
     if (n == 0) {
         for (auto* d : home_dot) lv_obj_add_flag(d, LV_OBJ_FLAG_HIDDEN);
+        for (auto* ic : home_ico) lv_obj_add_flag(ic, LV_OBJ_FLAG_HIDDEN);
         set_text_if_changed(home_label, "");
         set_text_if_changed(home_value, "");
         set_text_if_changed(home_sec, "");
@@ -893,6 +1020,13 @@ void home_timer_cb(lv_timer_t*) {
     int ti = order[home_ix];
     const auto& tile = snap.tiles[ti];
     auto info = homeassistant::type_info(cfg.type[ti]);
+
+    // icon for this page
+    HomeIcon ic = home_icon_for(cfg.icon[ti], cfg.type[ti]);
+    for (uint8_t i = 0; i < HI_COUNT; i++) {
+        if (i == ic) lv_obj_remove_flag(home_ico[i], LV_OBJ_FLAG_HIDDEN);
+        else         lv_obj_add_flag(home_ico[i], LV_OBJ_FLAG_HIDDEN);
+    }
 
     set_text_if_changed(home_label, cfg.label[ti]);
 
@@ -923,12 +1057,16 @@ void home_timer_cb(lv_timer_t*) {
 }
 
 // ── Auto mode supervisor ─────────────────────────────────────────────────────
-// Weather is the resting screen; when an airborne aircraft comes within
-// radar.auto_km the scope takes over, and stays for 30 s after the last
-// contact so brief gaps between polls don't cause flapping. auto_km == 0
-// disables switching (Auto then just shows weather). Distinct from alert_km
-// (the on-scope pulse/pin), which typically sits tighter than the switch.
+// The resting screen (Weather or Home, per radar.auto_base) is shown until an
+// airborne aircraft comes within radar.auto_km; then the scope takes over, and
+// stays for 30 s after the last contact so brief poll gaps don't cause
+// flapping. auto_km == 0 disables switching (Auto then just shows the base).
+// auto_km is distinct from alert_km (the on-scope pulse/pin).
 constexpr uint32_t AUTO_HOLD_MS = 30000;
+
+lv_obj_t* auto_base_screen() {
+    return settings::state().radar.auto_base == 1 ? screen_home : screen_wx;
+}
 
 void auto_timer_cb(lv_timer_t*) {
     if (status_active || settings::state().mode != settings::Mode::Auto) return;
@@ -951,7 +1089,7 @@ void auto_timer_cb(lv_timer_t*) {
     uint32_t now = millis();
     if (traffic) last_traffic_ms = now;
     bool hold = last_traffic_ms != 0 && now - last_traffic_ms < AUTO_HOLD_MS;
-    load_screen(traffic || hold ? screen_radar : screen_wx);
+    load_screen(traffic || hold ? screen_radar : auto_base_screen());
 }
 
 // Screen the current settings mode wants displayed right now.
@@ -960,8 +1098,8 @@ lv_obj_t* target_for_mode() {
         case settings::Mode::Radar:   return screen_radar;
         case settings::Mode::Weather: return screen_wx;
         case settings::Mode::Home:    return screen_home;
-        // Auto: keep whatever the supervisor chose; default to weather.
-        default: return shown == screen_radar ? screen_radar : screen_wx;
+        // Auto: keep whatever the supervisor chose; default to the base screen.
+        default: return shown == screen_radar ? screen_radar : auto_base_screen();
     }
 }
 

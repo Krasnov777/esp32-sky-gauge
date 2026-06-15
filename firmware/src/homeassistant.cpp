@@ -94,7 +94,11 @@ void poll_all(const settings::HomeConfig& cfg) {
 void task_fn(void*) {
     for (;;) {
         const auto& s = settings::state();
-        if (s.mode != settings::Mode::Home) {
+        // Active in Home mode, and in Auto mode when Home is the resting
+        // screen (auto_base == 1).
+        bool active = s.mode == settings::Mode::Home ||
+                      (s.mode == settings::Mode::Auto && s.radar.auto_base == 1);
+        if (!active) {
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;
         }

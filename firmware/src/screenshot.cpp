@@ -10,6 +10,8 @@ constexpr size_t PX_LEN  = (size_t)W * H * 2;          // RGB565 snapshot
 constexpr size_t BMP_HDR = 54;
 constexpr size_t BMP_LEN = BMP_HDR + (size_t)W * H * 3; // 24-bit, rows are 4-byte aligned (720)
 
+constexpr uint32_t MIN_INTERVAL_MS = 1500;   // min spacing between captures
+
 volatile bool requested = false;
 volatile bool have_shot = false;
 uint32_t shot_ms = 0;
@@ -70,6 +72,12 @@ void capture() {
 
 bool request() {
     if (!ensure_buffers()) return false;
+    // Rate-limit: each capture renders the whole screen via lv_snapshot, which
+    // leans on the LVGL heap. Firing them back-to-back can exhaust it, and with
+    // LV_ASSERT_MALLOC the failure path is while(1) — a frozen device. One
+    // capture per MIN_INTERVAL is plenty for a manual screenshot.
+    uint32_t now = millis();
+    if (have_shot && now - shot_ms < MIN_INTERVAL_MS) return true;  // reuse last
     requested = true;
     return true;
 }

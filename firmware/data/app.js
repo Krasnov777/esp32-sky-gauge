@@ -11,6 +11,7 @@
     radarLat: $('radarLat'), radarLon: $('radarLon'), radarRange: $('radarRange'),
     radarPoll: $('radarPoll'), radarTags: $('radarTags'),
     radarTheme: $('radarTheme'), radarAlert: $('radarAlert'), radarAuto: $('radarAuto'),
+    radarAutoBase: $('radarAutoBase'),
     radarSaveBtn: $('radarSaveBtn'), radarStatus: $('radarStatus'),
     radarLiveBlock: $('radarLiveBlock'), radarCanvas: $('radarCanvas'),
     radarCanvasHint: $('radarCanvasHint'),
@@ -26,16 +27,21 @@
 
   const HA_TYPES = ['temperature', 'climate', 'humidity', 'power', 'battery',
                     'co2', 'pressure', 'voltage', 'custom'];
-  const HA_TILES = 4;
-  // Build the tile config rows once.
+  const HA_ICONS = ['auto', 'thermometer', 'humidity', 'power', 'battery', 'sun',
+                    'home', 'gauge', 'fire', 'snow', 'bulb'];
+  const HA_TILES = 5;
+  // Build the tile config rows once (one entity per page).
   for (let i = 0; i < HA_TILES; i++) {
     const row = document.createElement('div');
     row.className = 'grid2';
-    row.style.marginTop = '10px';
+    row.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--line)';
     row.innerHTML =
-      `<label>Tile ${i + 1} label <input type="text" id="haLbl${i}" placeholder="Living room"></label>` +
+      `<label>Page ${i + 1} label <input type="text" id="haLbl${i}" placeholder="Living room"></label>` +
       `<label>Type <select id="haTyp${i}">` +
         HA_TYPES.map(t => `<option value="${t}">${t}</option>`).join('') +
+      `</select></label>` +
+      `<label>Icon <select id="haIco${i}">` +
+        HA_ICONS.map(t => `<option value="${t}">${t}</option>`).join('') +
       `</select></label>` +
       `<label>Entity <input type="text" id="haEnt${i}" placeholder="sensor.living_temperature" autocomplete="off"></label>` +
       `<label>Secondary entity (optional) <input type="text" id="haEn2${i}" placeholder="sensor.living_humidity" autocomplete="off"></label>`;
@@ -109,6 +115,7 @@
     el.radarTheme.value  = String(s.radar?.theme ?? 0);
     el.radarAlert.value  = s.radar?.alert_km ?? 3;
     el.radarAuto.value   = s.radar?.auto_km ?? 5;
+    el.radarAutoBase.value = String(s.radar?.auto_base ?? 0);
     radarTheme = s.radar?.theme ?? 0;
 
     // Home Assistant
@@ -120,6 +127,7 @@
       const t = tiles[i] ?? {};
       $('haLbl' + i).value = t.label ?? '';
       $('haTyp' + i).value = t.type ?? 'temperature';
+      $('haIco' + i).value = t.icon ?? 'auto';
       $('haEnt' + i).value = t.entity ?? '';
       $('haEn2' + i).value = t.entity2 ?? '';
     }
@@ -174,6 +182,7 @@
         theme:    Number(el.radarTheme.value) || 0,
         alert_km: Math.max(0, Number(el.radarAlert.value) || 0),
         auto_km:  Math.max(0, Number(el.radarAuto.value) || 0),
+        auto_base: Number(el.radarAutoBase.value) || 0,
       }});
       el.radarStatus.textContent = 'Saved.';
       setTimeout(() => { el.radarStatus.textContent = ''; }, 3000);
@@ -191,6 +200,7 @@
         home.tiles.push({
           label:   $('haLbl' + i).value.trim(),
           type:    $('haTyp' + i).value,
+          icon:    $('haIco' + i).value,
           entity:  $('haEnt' + i).value.trim(),
           entity2: $('haEn2' + i).value.trim(),
         });

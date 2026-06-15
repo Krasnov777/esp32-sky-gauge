@@ -52,6 +52,7 @@ void begin() {
     load_scalar("r_thm",  snap.radar.theme);
     load_scalar("r_alrt", snap.radar.alert_km);
     load_scalar("r_auto", snap.radar.auto_km);
+    load_scalar("r_abase", snap.radar.auto_base);
 
     load_string("h_url", snap.home.url,   sizeof(snap.home.url));
     load_string("h_tok", snap.home.token, sizeof(snap.home.token));
@@ -59,6 +60,7 @@ void begin() {
     for (int i = 0; i < HOME_TILES; i++) {
         char k[8];
         snprintf(k, sizeof(k), "h%dtyp", i); load_string(k, snap.home.type[i],    sizeof(snap.home.type[i]));
+        snprintf(k, sizeof(k), "h%dico", i); load_string(k, snap.home.icon[i],    sizeof(snap.home.icon[i]));
         snprintf(k, sizeof(k), "h%dlbl", i); load_string(k, snap.home.label[i],   sizeof(snap.home.label[i]));
         snprintf(k, sizeof(k), "h%dent", i); load_string(k, snap.home.entity[i],  sizeof(snap.home.entity[i]));
         snprintf(k, sizeof(k), "h%den2", i); load_string(k, snap.home.entity2[i], sizeof(snap.home.entity2[i]));
@@ -81,6 +83,7 @@ void save() {
     prefs.putUChar("r_thm",  snap.radar.theme);
     prefs.putUShort("r_alrt", snap.radar.alert_km);
     prefs.putUShort("r_auto", snap.radar.auto_km);
+    prefs.putUChar("r_abase", snap.radar.auto_base);
 
     prefs.putString("h_url", snap.home.url);
     prefs.putString("h_tok", snap.home.token);
@@ -88,6 +91,7 @@ void save() {
     for (int i = 0; i < HOME_TILES; i++) {
         char k[8];
         snprintf(k, sizeof(k), "h%dtyp", i); prefs.putString(k, snap.home.type[i]);
+        snprintf(k, sizeof(k), "h%dico", i); prefs.putString(k, snap.home.icon[i]);
         snprintf(k, sizeof(k), "h%dlbl", i); prefs.putString(k, snap.home.label[i]);
         snprintf(k, sizeof(k), "h%dent", i); prefs.putString(k, snap.home.entity[i]);
         snprintf(k, sizeof(k), "h%den2", i); prefs.putString(k, snap.home.entity2[i]);
@@ -146,11 +150,13 @@ bool apply_json(JsonVariantConst patch) {
         changed |= maybe_set<uint8_t>(r["theme"],     snap.radar.theme);
         changed |= maybe_set<uint16_t>(r["alert_km"], snap.radar.alert_km);
         changed |= maybe_set<uint16_t>(r["auto_km"],  snap.radar.auto_km);
+        changed |= maybe_set<uint8_t>(r["auto_base"], snap.radar.auto_base);
         snap.radar.range_km = constrain(snap.radar.range_km, 10, 400);
         snap.radar.poll_s   = constrain(snap.radar.poll_s, 5, 120);
         snap.radar.theme    = constrain(snap.radar.theme, 0, 1);
         snap.radar.alert_km = constrain(snap.radar.alert_km, 0, 50);
         snap.radar.auto_km  = constrain(snap.radar.auto_km, 0, 400);
+        snap.radar.auto_base = constrain(snap.radar.auto_base, 0, 1);
     }
 
     JsonVariantConst h = patch["home"];
@@ -164,6 +170,7 @@ bool apply_json(JsonVariantConst patch) {
             for (int i = 0; i < HOME_TILES && i < (int)tiles.size(); i++) {
                 JsonVariantConst t = tiles[i];
                 changed |= maybe_set_str(t["type"],    snap.home.type[i],    sizeof(snap.home.type[i]));
+                changed |= maybe_set_str(t["icon"],    snap.home.icon[i],    sizeof(snap.home.icon[i]));
                 changed |= maybe_set_str(t["label"],   snap.home.label[i],   sizeof(snap.home.label[i]));
                 changed |= maybe_set_str(t["entity"],  snap.home.entity[i],  sizeof(snap.home.entity[i]));
                 changed |= maybe_set_str(t["entity2"], snap.home.entity2[i], sizeof(snap.home.entity2[i]));
@@ -194,6 +201,7 @@ void to_json(JsonObject out, bool include_secrets) {
     r["theme"]     = snap.radar.theme;
     r["alert_km"]  = snap.radar.alert_km;
     r["auto_km"]   = snap.radar.auto_km;
+    r["auto_base"] = snap.radar.auto_base;
 
     JsonObject hh = out["home"].to<JsonObject>();
     hh["url"]       = snap.home.url;
@@ -204,6 +212,7 @@ void to_json(JsonObject out, bool include_secrets) {
     for (int i = 0; i < HOME_TILES; i++) {
         JsonObject t = tiles.add<JsonObject>();
         t["type"]    = snap.home.type[i];
+        t["icon"]    = snap.home.icon[i];
         t["label"]   = snap.home.label[i];
         t["entity"]  = snap.home.entity[i];
         t["entity2"] = snap.home.entity2[i];
