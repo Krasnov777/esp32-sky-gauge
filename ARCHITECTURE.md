@@ -214,15 +214,17 @@ classDiagram
     +uint8 theme
     +uint16 alert_km
     +uint16 auto_km
+    +uint8 auto_base
   }
   class HomeConfig {
     +char url[96]
     +char token[224]
     +uint16 poll_s
-    +char type[4][16]
-    +char label[4][20]
-    +char entity[4][48]
-    +char entity2[4][48]
+    +char type[5][16]
+    +char icon[5][16]
+    +char label[5][20]
+    +char entity[5][48]
+    +char entity2[5][48]
   }
   Snapshot *-- RadarConfig
   Snapshot *-- HomeConfig
@@ -263,7 +265,7 @@ startup so WiFi messages are readable; not user-selectable):
 |---|---|
 | `Radar`   | range rings (round-distance steps + rim) + crosshair + cardinal ticks/"N" + 21× `lv_line` sweep (bright edge + fading trail) + center hub + 12× blip pools (`lv_obj` dot, `lv_line` heading vector, `lv_label` tag) + labels (track count, range marks, focus readout ×2, status) |
 | `Weather` | 7 icon groups built from LVGL primitives (sun/partly/cloud/rain/snow/thunder/fog — circles + lines, no image assets) + labels (temp 48 pt, description, feels/humidity, wind) + 24× rain-nowcast bars (bottom edge, hidden when dry) + status |
-| `Home`    | one big card cycling through configured HA tiles (label 24 pt accent, value 48 pt, secondary 18 pt) + 4 page dots + status. Mirrors the Frame's Home mode data, laid out as cycling cards for the round screen |
+| `Home`    | one entity per page, cycling every 4 s: a selectable drawn icon (pool of 10 LVGL-primitive glyphs, hidden-group-per-kind like Weather) + label 24 pt accent + value 48 pt + secondary 18 pt + 5 page dots + status. Mirrors the Frame's Home mode data, laid out as cycling single cards for the round screen |
 | status    | 3× `lv_label` (title, line1, line2) — boot + OTA-progress messages |
 
 All screens are built once during `ui::begin()` (they're cheap), kept around as
@@ -272,10 +274,11 @@ All screens are built once during `ui::begin()` (they're cheap), kept around as
 A `shown` pointer tracks which screen is actually displayed — in **Auto mode**
 that differs from what the settings mode implies, so the animation timers gate
 on `shown`, not on the mode. The Auto supervisor (500 ms `lv_timer`) rests on
-the weather screen, loads the radar screen while any airborne aircraft is
-within `radar.auto_km`, and returns 30 s after the last contact (hysteresis
-against poll-gap flapping). `auto_km == 0` disables switching; it is distinct
-from `alert_km`, which drives the on-scope focus-pin + ring pulse.
+the chosen base screen (`radar.auto_base`: Weather or Home), loads the radar
+screen while any airborne aircraft is within `radar.auto_km`, and returns 30 s
+after the last contact (hysteresis against poll-gap flapping). `auto_km == 0`
+disables switching; it is distinct from `alert_km`, which drives the on-scope
+focus-pin + ring pulse.
 
 The radar screen is animated by an `lv_timer` (33 ms): the sweep angle is
 derived from the wall clock (8 s/revolution — counting ticks turns timer
@@ -460,8 +463,9 @@ Radar and Auto modes — the TLS lock keeps the two from overlapping.
 ### 3.9 `homeassistant.{h,cpp}` — Home Assistant entity poller
 
 Mirrors the weather module (mode-gated core-0 task, mutex-guarded snapshot,
-`Status` enum). Active only in **Home** mode. Each poll cycle (`home.poll_s`,
-default 15 s) fetches up to `HOME_TILES` (4) configured entities:
+`Status` enum). Active in **Home** mode, and in **Auto** mode when Home is the
+resting screen (`radar.auto_base == 1`). Each poll cycle (`home.poll_s`,
+default 15 s) fetches up to `HOME_TILES` (5) configured entities:
 `GET {home.url}/api/states/{entity}` with `Authorization: Bearer {token}`,
 parsing the `state` field as a number (and keeping the raw string for the
 `custom` type / non-numeric entities). A tile may name a second entity for a
@@ -472,11 +476,12 @@ radar/weather TLS handshakes.
 
 Config lives in `settings::HomeConfig`: `url`, write-only `token` (never
 returned by `to_json` — a `token_set` bool is exposed instead), `poll_s`, and
-per-tile `type`/`label`/`entity`/`entity2`. The `type` key is a preset bundling
-unit + decimals + whether a secondary is shown (temperature, climate, humidity,
-power, battery, co2, pressure, voltage, custom) — the same catalog idea as the
-Frame project's Home mode, adapted from its 4.7" 2×2 grid to the round screen's
-cycling single-card layout (see §3.4).
+per-tile `type`/`icon`/`label`/`entity`/`entity2`. The `type` key is a preset
+bundling unit + decimals + whether a secondary is shown (temperature, climate,
+humidity, power, battery, co2, pressure, voltage, custom). `icon` selects a
+drawn glyph from a 10-icon pool, or `auto` to derive it from the type. Same
+catalog idea as the Frame project's Home mode, adapted from its 4.7" 2×2 grid
+to the round screen's one-entity-per-page cycling layout (see §3.4).
 
 This integration mirrors the sibling **LilyGo T5 "Frame"** project's Home mode;
 the data contract (HA REST + long-lived token + typed entity tiles) is the same.

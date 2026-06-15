@@ -32,8 +32,8 @@ screen with a shower approaching on the 2-hour rain graph.*
 |--------------|-----------------------------------------------------------------------|
 | Flight radar | Retro PPI scope (green or amber phosphor) of live aircraft around the configured location: rotating sweep with phosphor-decay trail, blips with afterglow + callsign tags + heading vectors, round-number range rings, true-north compass, cycling detail readout (flight, route, altitude ↑↓, speed, distance). Positions are dead-reckoned between polls so blips glide. Configurable overhead alert pulses the scope when traffic flies within N km; emergency squawks (7500/7600/7700) paint red. |
 | Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. A 2-hour **rain nowcast** bar graph (buienradar raintext, 5-min steps, refreshed every 5 min) appears at the bottom whenever rain is coming. |
-| Auto         | Weather as the resting screen; switches to the radar scope while airborne traffic is within the auto-switch distance (own setting, default 5 km — independent of the overhead-alert pulse distance), and back 30 s after the sky clears. Both pollers stay active. |
-| Home         | Home Assistant entity tiles — up to 4 configurable entities pulled from HA's REST API (`/api/states` with a long-lived token), shown one at a time as big cycling cards (label, value + unit, optional secondary like humidity). A `type` preset per tile sets unit/decimals (temperature, climate, humidity, power, battery, CO₂, pressure, voltage, custom). |
+| Auto         | A chosen resting screen (**Weather or Home**, selectable) that switches to the radar scope while airborne traffic is within the auto-switch distance (own setting, default 5 km — independent of the overhead-alert pulse distance), and back 30 s after the sky clears. The pollers for the active screens stay running. |
+| Home         | Home Assistant entity pages — up to 5 entities pulled from HA's REST API (`/api/states` with a long-lived token), one per page, cycling every 4 s as big cards (selectable icon, label, value + unit, optional secondary like humidity) with page dots. A `type` preset per page sets unit/decimals (temperature, climate, humidity, power, battery, CO₂, pressure, voltage, custom); the icon is chosen from a pool (thermometer, droplet, bolt, battery, sun, house, gauge, fire, snowflake, bulb) or `auto` to follow the type. |
 
 Mode, location, radar range/theme/alert, brightness, hostname and WiFi
 credentials are configurable from the web UI. The web UI shows only the cards
@@ -124,12 +124,12 @@ the IP shown on screen). Cards appear per selected mode:
   fed by a WebSocket broadcast, with its own sweep and dead-reckoned blips
 - **Flight radar** *(radar + auto modes)* — latitude/longitude, range (km), poll
   interval, green/amber theme, overhead-alert distance, auto-switch distance,
-  callsign tags; explicit **Save** button
+  Auto resting screen (Weather/Home), callsign tags; explicit **Save** button
 - **Weather** *(weather + auto modes)* — info card; the location comes from the
   Flight radar settings
 - **Home Assistant** *(home mode)* — HA base URL, long-lived token (stored
-  write-only, never sent back), poll interval, and 4 entity tiles (label, type
-  preset, primary entity, optional secondary); explicit **Save** button
+  write-only, never sent back), poll interval, and 5 entity pages (label, type
+  preset, icon, primary entity, optional secondary); explicit **Save** button
 - **Display** — backlight brightness + a **Screenshot** button that captures
   exactly what's on the round LCD (LVGL snapshot → 24-bit BMP, served at
   `/shot.bmp`; scriptable: `curl -X POST http://<device>/api/shot && sleep 1 &&
