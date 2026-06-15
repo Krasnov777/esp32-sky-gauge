@@ -30,6 +30,11 @@ String ap_ssid() {
 bool try_sta(const char* ssid, const char* pwd) {
     WiFi.mode(WIFI_STA);
     WiFi.setHostname(settings::state().hostname);
+    // Disable WiFi modem-sleep (power save). It's on by default and is a
+    // notorious cause of "associated but unresponsive / dropping connections"
+    // flakiness — which this unit suffered repeatedly. This is a mains/USB
+    // powered desk device, so the extra draw is irrelevant.
+    WiFi.setSleep(false);
     WiFi.begin(ssid, pwd);
     log_i("WiFi STA → SSID='%s'", ssid);
 
