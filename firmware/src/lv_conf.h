@@ -12,7 +12,12 @@
 #define LV_USE_STDLIB_MALLOC  LV_STDLIB_BUILTIN
 #define LV_USE_STDLIB_STRING  LV_STDLIB_BUILTIN
 #define LV_USE_STDLIB_SPRINTF LV_STDLIB_BUILTIN
-#define LV_MEM_SIZE (96U * 1024U)
+// LVGL widget pool. Measured peak usage across all screens is ~34 KB, so 64 KB
+// leaves comfortable headroom while returning ~32 KB of DRAM to the system heap
+// — the network stack (mbedtls TLS handshakes need a large contiguous block)
+// was starving at ~61 KB free / 35 KB max-block, causing "esp-sha: Failed to
+// allocate buf memory" and dropped connections.
+#define LV_MEM_SIZE (64U * 1024U)
 #define LV_MEM_POOL_INCLUDE <stdlib.h>
 
 // ── OS / tick ────────────────────────────────────────────────────────────────
