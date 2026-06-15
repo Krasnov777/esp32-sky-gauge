@@ -15,7 +15,8 @@ enum class Mode : uint8_t {
     Home = 3,     // Home Assistant entity tiles (REST /api/states + token)
 };
 
-constexpr int HOME_TILES = 5;   // one HA entity per page; 5 pages on the round screen
+constexpr int HOME_TILES = 8;   // max HA entity pages; the web UI adds/removes
+                                // pages up to this cap, only configured ones cycle
 
 struct HomeConfig {
     // Home Assistant REST integration. Token is a long-lived access token —

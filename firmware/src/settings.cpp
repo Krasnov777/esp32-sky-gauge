@@ -163,11 +163,20 @@ bool apply_json(JsonVariantConst patch) {
         snap.home.poll_s = constrain(snap.home.poll_s, 5, 600);
         JsonArrayConst tiles = h["tiles"];
         if (!tiles.isNull()) {
-            for (int i = 0; i < HOME_TILES && i < (int)tiles.size(); i++) {
-                JsonVariantConst t = tiles[i];
-                changed |= maybe_set_str(t["icon"],   snap.home.icon[i],   sizeof(snap.home.icon[i]));
-                changed |= maybe_set_str(t["label"],  snap.home.label[i],  sizeof(snap.home.label[i]));
-                changed |= maybe_set_str(t["entity"], snap.home.entity[i], sizeof(snap.home.entity[i]));
+            // The tiles array replaces the whole page list: apply the provided
+            // pages, then clear any slots beyond them (so removing a page in
+            // the web UI actually removes it rather than leaving stale data).
+            int nt = (int)tiles.size();
+            for (int i = 0; i < HOME_TILES; i++) {
+                if (i < nt) {
+                    JsonVariantConst t = tiles[i];
+                    changed |= maybe_set_str(t["icon"],   snap.home.icon[i],   sizeof(snap.home.icon[i]));
+                    changed |= maybe_set_str(t["label"],  snap.home.label[i],  sizeof(snap.home.label[i]));
+                    changed |= maybe_set_str(t["entity"], snap.home.entity[i], sizeof(snap.home.entity[i]));
+                } else if (snap.home.entity[i][0] || snap.home.label[i][0]) {
+                    snap.home.icon[i][0] = snap.home.label[i][0] = snap.home.entity[i][0] = '\0';
+                    changed = true;
+                }
             }
         }
     }

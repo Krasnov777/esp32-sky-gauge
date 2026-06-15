@@ -220,9 +220,9 @@ classDiagram
     +char url[96]
     +char token[224]
     +uint16 poll_s
-    +char icon[5][16]
-    +char label[5][20]
-    +char entity[5][48]
+    +char icon[8][16]
+    +char label[8][20]
+    +char entity[8][48]
   }
   Snapshot *-- RadarConfig
   Snapshot *-- HomeConfig
@@ -463,7 +463,7 @@ Radar and Auto modes — the TLS lock keeps the two from overlapping.
 Mirrors the weather module (mode-gated core-0 task, mutex-guarded snapshot,
 `Status` enum). Active in **Home** mode, and in **Auto** mode when Home is the
 resting screen (`radar.auto_base & 2`). Each poll cycle (`home.poll_s`,
-default 15 s) fetches up to `HOME_TILES` (5) configured entities:
+default 15 s) fetches up to `HOME_TILES` (8) configured entities:
 `GET {home.url}/api/states/{entity}` with `Authorization: Bearer {token}`,
 keeping the `state` string and `attributes.unit_of_measurement`. Fetches go
 through `net::http_get_text(..., bearer)` — the shared helper grew a

@@ -16,7 +16,8 @@
     radarLiveBlock: $('radarLiveBlock'), radarCanvas: $('radarCanvas'),
     radarCanvasHint: $('radarCanvasHint'),
     haUrl: $('haUrl'), haToken: $('haToken'), haPoll: $('haPoll'),
-    haTiles: $('haTiles'), haSaveBtn: $('haSaveBtn'), haStatus: $('haStatus'),
+    haTiles: $('haTiles'), haAddBtn: $('haAddBtn'),
+    haSaveBtn: $('haSaveBtn'), haStatus: $('haStatus'),
     ssid: $('ssid'), password: $('password'), hostname: $('hostname'),
     wifiSaveBtn: $('wifiSaveBtn'), wifiStatus: $('wifiStatus'),
     rebootBtn: $('rebootBtn'), resetBtn: $('resetBtn'),
@@ -31,19 +32,44 @@
     ['sun', '☀️'], ['home', '🏠'], ['gauge', '🎛️'], ['fire', '🔥'],
     ['snow', '❄️'], ['bulb', '💡'],
   ];
-  const HA_TILES = 5;
-  // Build the page config rows once — one entity per page: label, icon, entity.
-  for (let i = 0; i < HA_TILES; i++) {
-    const row = document.createElement('div');
-    row.className = 'grid2';
-    row.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--line)';
-    row.innerHTML =
-      `<label>Page ${i + 1} label <input type="text" id="haLbl${i}" placeholder="Living room"></label>` +
-      `<label>Icon <select id="haIco${i}" class="iconsel">` +
-        HA_ICONS.map(([k, g]) => `<option value="${k}">${g}</option>`).join('') +
-      `</select></label>` +
-      `<label>Entity <input type="text" id="haEnt${i}" placeholder="sensor.living_temperature" autocomplete="off"></label>`;
-    el.haTiles.appendChild(row);
+  const HA_MAX = 8;                 // device-side page cap (settings::HOME_TILES)
+  let haPages = [];                 // [{label, icon, entity}] — dynamic list
+
+  const iconOptions = HA_ICONS.map(([k, g]) => `<option value="${k}">${g}</option>`).join('');
+
+  // Read the current input values back into haPages (call before mutating).
+  function collectHaPages() {
+    haPages = haPages.map((_, i) => ({
+      label:  $('haLbl' + i).value,
+      icon:   $('haIco' + i).value,
+      entity: $('haEnt' + i).value,
+    }));
+  }
+
+  // Rebuild the page rows from haPages (label/icon/entity + a Remove button).
+  function renderHaPages() {
+    el.haTiles.innerHTML = '';
+    haPages.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'grid2';
+      row.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--line)';
+      row.innerHTML =
+        `<label>Page ${i + 1} label <input type="text" id="haLbl${i}" placeholder="Living room"></label>` +
+        `<label>Icon <select id="haIco${i}" class="iconsel">${iconOptions}</select></label>` +
+        `<label>Entity <input type="text" id="haEnt${i}" placeholder="sensor.living_temperature" autocomplete="off"></label>` +
+        `<label>&nbsp;<button type="button" class="danger" data-rm="${i}">Remove</button></label>`;
+      el.haTiles.appendChild(row);
+      // set values after insertion (avoids quoting/injection in the template)
+      $('haLbl' + i).value = p.label || '';
+      $('haIco' + i).value = p.icon || 'gauge';
+      $('haEnt' + i).value = p.entity || '';
+    });
+    el.haTiles.querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+      collectHaPages();
+      haPages.splice(Number(b.dataset.rm), 1);
+      renderHaPages();
+    }));
+    el.haAddBtn.disabled = haPages.length >= HA_MAX;
   }
 
   let ws = null;
@@ -122,13 +148,12 @@
     el.haUrl.value  = s.home?.url ?? '';
     el.haPoll.value = s.home?.poll_s ?? 15;
     el.haToken.placeholder = s.home?.token_set ? '(leave blank to keep current)' : 'long-lived access token';
-    const tiles = s.home?.tiles ?? [];
-    for (let i = 0; i < HA_TILES; i++) {
-      const t = tiles[i] ?? {};
-      $('haLbl' + i).value = t.label ?? '';
-      $('haIco' + i).value = t.icon ?? 'gauge';
-      $('haEnt' + i).value = t.entity ?? '';
-    }
+    // Load configured pages (those with an entity); keep at least one row.
+    haPages = (s.home?.tiles ?? [])
+      .filter(t => (t.entity ?? '').length > 0)
+      .map(t => ({ label: t.label ?? '', icon: t.icon ?? 'gauge', entity: t.entity ?? '' }));
+    if (haPages.length === 0) haPages = [{ label: '', icon: 'gauge', entity: '' }];
+    renderHaPages();
 
     el.ssid.value     = s.wifi?.ssid     ?? '';
     el.hostname.value = s.wifi?.hostname ?? '';
@@ -186,6 +211,13 @@
       setTimeout(() => { el.radarStatus.textContent = ''; }, 3000);
     });
 
+    // Home Assistant: add a page (up to the device cap).
+    el.haAddBtn.addEventListener('click', () => {
+      collectHaPages();
+      if (haPages.length < HA_MAX) haPages.push({ label: '', icon: 'gauge', entity: '' });
+      renderHaPages();
+    });
+
     // Home Assistant: explicit save (URL + token + tiles belong together).
     el.haSaveBtn.addEventListener('click', () => {
       const home = {
@@ -194,13 +226,12 @@
         tiles: [],
       };
       if (el.haToken.value) home.token = el.haToken.value;   // blank = keep current
-      for (let i = 0; i < HA_TILES; i++) {
-        home.tiles.push({
-          label:  $('haLbl' + i).value.trim(),
-          icon:   $('haIco' + i).value,
-          entity: $('haEnt' + i).value.trim(),
-        });
-      }
+      collectHaPages();
+      home.tiles = haPages.map(p => ({
+        label:  (p.label || '').trim(),
+        icon:   p.icon,
+        entity: (p.entity || '').trim(),
+      }));
       sendConfig({ home });
       el.haToken.value = '';   // don't keep the secret in the field
       el.haStatus.textContent = 'Saved.';

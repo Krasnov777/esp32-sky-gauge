@@ -33,7 +33,7 @@ screen with a shower approaching on the 2-hour rain graph.*
 | Flight radar | Retro PPI scope (green or amber phosphor) of live aircraft around the configured location: rotating sweep with phosphor-decay trail, blips with afterglow + callsign tags + heading vectors, round-number range rings, true-north compass, cycling detail readout (flight, route, altitude ↑↓, speed, distance). Positions are dead-reckoned between polls so blips glide. Configurable overhead alert pulses the scope when traffic flies within N km; emergency squawks (7500/7600/7700) paint red. |
 | Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. A 2-hour **rain nowcast** bar graph (buienradar raintext, 5-min steps, refreshed every 5 min) appears at the bottom whenever rain is coming. |
 | Auto         | One or more resting screens (**Weather and/or Home Integration**, selected via checkboxes) shown between flyovers — if both are picked they alternate every 8 s. Switches to the radar scope while airborne traffic is within the auto-switch distance (own setting, default 5 km — independent of the overhead-alert pulse distance), and back 30 s after the sky clears. |
-| Home Integration | Home Assistant entity pages — up to 5 entities pulled from HA's REST API (`/api/states` with a long-lived token), **one per page**, cycling every 4 s as big cards (icon, label, value) with centered page dots. The value's unit comes from the entity's own `unit_of_measurement`. Each page picks an icon from a pool (thermometer, droplet, bolt, battery, sun, house, gauge, fire, snowflake, bulb). |
+| Home Integration | Home Assistant entity pages — add as many as you need (up to 8) from HA's REST API (`/api/states` with a long-lived token), **one entity per page**, cycling every 4 s as big cards (icon, label, value) with centered page dots. The value's unit comes from the entity's own `unit_of_measurement`. Each page picks an icon from a pool (thermometer, droplet, bolt, battery, sun, house, gauge, fire, snowflake, bulb). |
 
 Mode, location, radar range/theme/alert, brightness, hostname and WiFi
 credentials are configurable from the web UI. The web UI shows only the cards
@@ -128,8 +128,9 @@ the IP shown on screen). Cards appear per selected mode:
 - **Weather** *(weather + auto modes)* — info card; the location comes from the
   Flight radar settings
 - **Home Assistant** *(Home Integration mode)* — HA base URL, long-lived token
-  (stored write-only, never sent back), poll interval, and 5 entity pages
-  (label, icon glyph picker, entity); explicit **Save** button
+  (stored write-only, never sent back), poll interval, and a dynamic list of
+  entity pages (label, icon glyph picker, entity) with **+ Add page** / **Remove**
+  buttons (1–8 pages); explicit **Save** button
 - **Display** — backlight brightness + a **Screenshot** button that captures
   exactly what's on the round LCD (LVGL snapshot → 24-bit BMP, served at
   `/shot.bmp`; scriptable: `curl -X POST http://<device>/api/shot && sleep 1 &&
