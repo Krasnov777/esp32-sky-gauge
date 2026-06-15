@@ -140,8 +140,12 @@ void on_ws_event(AsyncWebSocket*, AsyncWebSocketClient* client, AwsEventType typ
 
 void register_routes() {
     // Static files from LittleFS — index.html, app.js, style.css.
+    // no-cache: the UI is iterated on and pushed via OTA `uploadfs`; a long
+    // max-age leaves browsers running a stale app.js against fresh firmware
+    // (e.g. a new mode's settings card never appears). Files are tiny and on
+    // the LAN — revalidating each load costs nothing.
     server.serveStatic("/", LittleFS, "/").setDefaultFile("index.html")
-          .setCacheControl("max-age=600");
+          .setCacheControl("no-cache");
 
     // REST endpoints for the web UI (HTTP fallback to WS-driven flow).
     server.on("/api/state", HTTP_GET, [](AsyncWebServerRequest* req) {
