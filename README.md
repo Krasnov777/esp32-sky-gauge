@@ -1,24 +1,28 @@
 # ESP32-S3 Sky Gauge
 
 A round-LCD desk gauge for the **Waveshare ESP32-S3-LCD-1.28** that shows a
-live **flight radar** of aircraft around your home and the **current weather**
-— fully self-contained: the device fetches everything itself over WiFi from
-free public APIs. It serves its own web UI for mode switching and
-configuration.
+live **flight radar** of aircraft around your home, the **current weather**, and
+your **Home Assistant** entities — fully self-contained: the device fetches
+everything itself over WiFi from free public APIs (and, optionally, your own HA
+instance). It serves its own web UI for mode switching and configuration.
 
-| Flight radar (amber theme) | Weather + rain nowcast |
-|:---:|:---:|
-| ![Radar scope with 12 aircraft](docs/radar.png) | ![Current conditions](docs/weather.png) |
+| Flight radar (amber theme) | Weather + rain nowcast | Home Assistant |
+|:---:|:---:|:---:|
+| ![Radar scope with 12 aircraft](docs/radar.png) | ![Current conditions](docs/weather.png) | ![Home Assistant entity page](docs/home.png) |
 
 *Real screen captures (`/shot.bmp`): a busy evening scope — 12 contacts around
 Schiphol, focused on a Ryanair overflight (Billund→Vienna, FL360); the weather
-screen with a shower approaching on the 2-hour rain graph.*
+screen with a shower approaching on the 2-hour rain graph; a Home Assistant
+entity page (one big card per entity, Material Design icon, value + unit straight
+from HA — pages cycle automatically).*
 
 ```
                           Wi-Fi / HTTPS
-        ┌──────────────┐ ───────────────▶  api.adsb.lol      (aircraft positions)
-        │ ESP32-S3 LCD │ ───────────────▶  api.adsbdb.com    (callsign → route)
-        │  + web UI    │ ───────────────▶  api.open-meteo.com (current weather)
+        ┌──────────────┐ ───────────────▶  api.adsb.lol       (aircraft positions)
+        │ ESP32-S3 LCD │ ───────────────▶  api.adsbdb.com     (callsign → route)
+        │  + web UI    │ ───────────────▶  data.buienradar.nl (weather + rain nowcast)
+        │              │ ───────────────▶  api.open-meteo.com (weather fallback)
+        │              │ ───────────────▶  your Home Assistant (entity states)
         └──────┬───────┘
                │  WS / HTTP
                ▼
@@ -34,6 +38,10 @@ screen with a shower approaching on the 2-hour rain graph.*
 | Weather      | Actual measurements from the nearest buienradar.nl / KNMI weather station (Open-Meteo fallback outside NL/BE coverage): icon (drawn with LVGL primitives — sun/clouds/rain/snow/storm/fog), Dutch condition text, temperature, feels-like, humidity, wind speed + compass direction. Refreshes every 10 minutes. A 2-hour **rain nowcast** bar graph (buienradar raintext, 5-min steps, refreshed every 5 min) appears at the bottom whenever rain is coming. |
 | Auto         | One or more resting screens (**Weather and/or Home Integration**, selected via checkboxes) shown between flyovers — if both are picked they alternate every 8 s. Switches to the radar scope while airborne traffic is within the auto-switch distance (own setting, default 5 km — independent of the overhead-alert pulse distance), and back 30 s after the sky clears. |
 | Home Integration | Home Assistant entity pages — add as many as you need (up to 8) from HA's REST API (`/api/states` with a long-lived token), **one entity per page**, cycling every 4 s as big cards (icon, label, value) with centered page dots. The value's unit comes from the entity's own `unit_of_measurement`. Each page picks a **Material Design icon** (rendered from a generated LVGL MDI font): thermometer, humidity, power, battery, sun, home, gauge, fire, snowflake, bulb. |
+
+| Home Integration — page 1 | page 2 (auto-cycling) |
+|:---:|:---:|
+| ![HA temperature page](docs/home.png) | ![HA humidity page](docs/home2.png) |
 
 Mode, location, radar range/theme/alert, brightness, hostname and WiFi
 credentials are configurable from the web UI. The web UI shows only the cards
@@ -118,7 +126,7 @@ its own Access Point named `ESP-Gauge-XXXX` (XXXX = last 4 hex of the MAC).
 The web UI is served straight from the device at `http://esp-gauge.local` (or
 the IP shown on screen). Cards appear per selected mode:
 
-- **Mode** — four tiles (Flight Radar / Weather / Auto / Home); clicking switches
+- **Mode** — four tiles (Flight Radar / Weather / Auto / Home Integration); clicking switches
   the device *and* which settings cards are shown
 - **Radar live** *(radar + auto modes)* — canvas mirror of the on-device scope,
   fed by a WebSocket broadcast, with its own sweep and dead-reckoned blips
@@ -151,7 +159,7 @@ Endpoint: `ws://<device>/ws`
 { "type": "config", "patch": { "mode": 1, "radar": { "range_km": 50 } } }
 { "type": "config", "patch": { "home": { "url": "http://homeassistant.local:8123",
     "token": "<long-lived-token>", "tiles": [ { "label": "Living",
-    "type": "temperature", "entity": "sensor.living_temp" } ] } } }
+    "icon": "thermometer", "entity": "sensor.living_temp" } ] } } }
 { "type": "command", "cmd": "reboot" }
 { "type": "command", "cmd": "factory_reset" }
 ```
