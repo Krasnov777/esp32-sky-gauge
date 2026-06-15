@@ -30,8 +30,8 @@
         <span>Weather — flips to radar when traffic is overhead</span>
       </button>
       <button class="mode-btn" data-mode="3">
-        <strong>Home</strong>
-        <span>Home Assistant entity tiles</span>
+        <strong>Home Integration</strong>
+        <span>Home Assistant entities</span>
       </button>
     </div>
   </section>
@@ -59,12 +59,11 @@
         <input type="number" id="radarAlert" step="1" min="0" max="50" value="3"></label>
       <label>Auto-mode switch distance (km, 0 = off)
         <input type="number" id="radarAuto" step="1" min="0" max="400" value="5"></label>
-      <label>Auto resting screen
-        <select id="radarAutoBase">
-          <option value="0">Weather</option>
-          <option value="1">Home</option>
-        </select>
-      </label>
+      <label>Auto resting screens (shown between flyovers)</label>
+      <div class="row" style="gap:18px;margin:-4px 0 6px">
+        <label class="check"><input type="checkbox" id="radarAutoWx"> Weather</label>
+        <label class="check"><input type="checkbox" id="radarAutoHome"> Home Integration</label>
+      </div>
       <label class="check"><input type="checkbox" id="radarTags" checked> Show callsign tags on blips</label>
     </div>
     <div class="row">
@@ -100,10 +99,11 @@
     </div>
     <p class="hint">The device polls Home Assistant's REST API
       (<code>/api/states/&lt;entity&gt;</code>) with your token. Create a
-      long-lived token in HA → your profile → Security. Each tile shows one
-      entity; the round screen cycles through configured tiles. Use the device
-      IP in the URL if <code>homeassistant.local</code> doesn't resolve. Token
-      is stored write-only and never sent back to the browser.</p>
+      long-lived token in HA → your profile → Security. One entity per page —
+      the round screen cycles through the pages you fill in. The value's unit
+      comes from the entity itself. Use the device IP in the URL if
+      <code>homeassistant.local</code> doesn't resolve. Token is stored
+      write-only and never sent back to the browser.</p>
   </section>
 
   <section class="card">

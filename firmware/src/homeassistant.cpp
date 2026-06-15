@@ -17,27 +17,9 @@ volatile bool     have_data  = false;
 uint32_t last_try_ms = 0;
 bool     tried_once  = false;
 
-// type preset catalog — keep keys in sync with the web UI dropdown.
-struct Preset { const char* key; const char* unit; int decimals; bool secondary; };
-const Preset PRESETS[] = {
-    {"temperature", "\xC2\xB0", 1, false},   // ° (UTF-8)
-    {"climate",     "\xC2\xB0", 1, true},    // temp + humidity secondary
-    {"humidity",    "%",   0, false},
-    {"power",       " W",  0, false},
-    {"battery",     "%",   0, false},
-    {"co2",         " ppm",0, false},
-    {"pressure",    " hPa",0, false},
-    {"voltage",     " V",  1, false},
-    {"custom",      "",    1, false},        // shows raw string
-};
-const Preset& preset_for(const char* key) {
-    for (auto& p : PRESETS) if (strcmp(key, p.key) == 0) return p;
-    return PRESETS[sizeof(PRESETS) / sizeof(PRESETS[0]) - 1];   // custom
-}
-
-// GET {url}/api/states/{entity} → numeric value + raw string.
+// GET {url}/api/states/{entity} → state string + unit_of_measurement.
 bool get_state(const char* base, const char* token, const char* entity,
-               float& num_out, char* raw_out, size_t raw_cap) {
+               char* val_out, size_t val_cap, char* unit_out, size_t unit_cap) {
     if (!entity[0]) return false;
 
     char url[224];
@@ -46,7 +28,7 @@ bool get_state(const char* base, const char* token, const char* entity,
     while (n > 0 && base[n - 1] == '/') n--;
     snprintf(url, sizeof(url), "%.*s/api/states/%s", n, base, entity);
 
-    char body[512];
+    char body[768];
     if (!net::http_get_text(url, body, sizeof(body), token)) return false;
 
     JsonDocument doc;
@@ -54,8 +36,8 @@ bool get_state(const char* base, const char* token, const char* entity,
     const char* state = doc["state"] | "";
     if (!state[0] || !strcmp(state, "unavailable") || !strcmp(state, "unknown"))
         return false;
-    if (raw_out) strlcpy(raw_out, state, raw_cap);
-    num_out = atof(state);
+    strlcpy(val_out, state, val_cap);
+    strlcpy(unit_out, doc["attributes"]["unit_of_measurement"] | "", unit_cap);
     return true;
 }
 
@@ -70,14 +52,8 @@ void poll_all(const settings::HomeConfig& cfg) {
         any = true;
 
         t.ok = get_state(cfg.url, cfg.token, cfg.entity[i],
-                         t.value, t.raw, sizeof(t.raw));
+                         t.value, sizeof(t.value), t.unit, sizeof(t.unit));
         if (!t.ok) all_ok = false;
-
-        if (preset_for(cfg.type[i]).secondary && cfg.entity2[i][0]) {
-            char dummy[20];
-            t.sec_ok = get_state(cfg.url, cfg.token, cfg.entity2[i],
-                                 t.sec_value, dummy, sizeof(dummy));
-        }
     }
     local.any = any;
 
@@ -94,10 +70,10 @@ void poll_all(const settings::HomeConfig& cfg) {
 void task_fn(void*) {
     for (;;) {
         const auto& s = settings::state();
-        // Active in Home mode, and in Auto mode when Home is the resting
-        // screen (auto_base == 1).
+        // Active in Home mode, and in Auto mode when Home is among the resting
+        // screens (auto_base bit1).
         bool active = s.mode == settings::Mode::Home ||
-                      (s.mode == settings::Mode::Auto && s.radar.auto_base == 1);
+                      (s.mode == settings::Mode::Auto && (s.radar.auto_base & 2));
         if (!active) {
             vTaskDelay(pdMS_TO_TICKS(500));
             continue;
@@ -149,11 +125,6 @@ Status status() { return st; }
 
 uint32_t data_age_ms() {
     return have_data ? millis() - last_ok_ms : UINT32_MAX;
-}
-
-TypeInfo type_info(const char* key) {
-    const Preset& p = preset_for(key);
-    return {p.unit, p.decimals, p.secondary};
 }
 
 }  // namespace homeassistant

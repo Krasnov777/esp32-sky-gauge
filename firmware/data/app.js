@@ -11,7 +11,7 @@
     radarLat: $('radarLat'), radarLon: $('radarLon'), radarRange: $('radarRange'),
     radarPoll: $('radarPoll'), radarTags: $('radarTags'),
     radarTheme: $('radarTheme'), radarAlert: $('radarAlert'), radarAuto: $('radarAuto'),
-    radarAutoBase: $('radarAutoBase'),
+    radarAutoWx: $('radarAutoWx'), radarAutoHome: $('radarAutoHome'),
     radarSaveBtn: $('radarSaveBtn'), radarStatus: $('radarStatus'),
     radarLiveBlock: $('radarLiveBlock'), radarCanvas: $('radarCanvas'),
     radarCanvasHint: $('radarCanvasHint'),
@@ -25,26 +25,24 @@
     modeBtns: document.querySelectorAll('.mode-btn'),
   };
 
-  const HA_TYPES = ['temperature', 'climate', 'humidity', 'power', 'battery',
-                    'co2', 'pressure', 'voltage', 'custom'];
-  const HA_ICONS = ['auto', 'thermometer', 'humidity', 'power', 'battery', 'sun',
-                    'home', 'gauge', 'fire', 'snow', 'bulb'];
+  // Icon pool — shown as glyphs in the picker (the device draws matching icons).
+  const HA_ICONS = [
+    ['thermometer', '🌡️'], ['droplet', '💧'], ['bolt', '⚡'], ['battery', '🔋'],
+    ['sun', '☀️'], ['home', '🏠'], ['gauge', '🎛️'], ['fire', '🔥'],
+    ['snow', '❄️'], ['bulb', '💡'],
+  ];
   const HA_TILES = 5;
-  // Build the tile config rows once (one entity per page).
+  // Build the page config rows once — one entity per page: label, icon, entity.
   for (let i = 0; i < HA_TILES; i++) {
     const row = document.createElement('div');
     row.className = 'grid2';
     row.style.cssText = 'margin-top:10px;padding-top:10px;border-top:1px solid var(--line)';
     row.innerHTML =
       `<label>Page ${i + 1} label <input type="text" id="haLbl${i}" placeholder="Living room"></label>` +
-      `<label>Type <select id="haTyp${i}">` +
-        HA_TYPES.map(t => `<option value="${t}">${t}</option>`).join('') +
+      `<label>Icon <select id="haIco${i}" class="iconsel">` +
+        HA_ICONS.map(([k, g]) => `<option value="${k}">${g}</option>`).join('') +
       `</select></label>` +
-      `<label>Icon <select id="haIco${i}">` +
-        HA_ICONS.map(t => `<option value="${t}">${t}</option>`).join('') +
-      `</select></label>` +
-      `<label>Entity <input type="text" id="haEnt${i}" placeholder="sensor.living_temperature" autocomplete="off"></label>` +
-      `<label>Secondary entity (optional) <input type="text" id="haEn2${i}" placeholder="sensor.living_humidity" autocomplete="off"></label>`;
+      `<label>Entity <input type="text" id="haEnt${i}" placeholder="sensor.living_temperature" autocomplete="off"></label>`;
     el.haTiles.appendChild(row);
   }
 
@@ -115,7 +113,9 @@
     el.radarTheme.value  = String(s.radar?.theme ?? 0);
     el.radarAlert.value  = s.radar?.alert_km ?? 3;
     el.radarAuto.value   = s.radar?.auto_km ?? 5;
-    el.radarAutoBase.value = String(s.radar?.auto_base ?? 0);
+    const ab = s.radar?.auto_base ?? 1;
+    el.radarAutoWx.checked   = (ab & 1) || ab === 0;   // 0 = Weather default
+    el.radarAutoHome.checked = !!(ab & 2);
     radarTheme = s.radar?.theme ?? 0;
 
     // Home Assistant
@@ -126,10 +126,8 @@
     for (let i = 0; i < HA_TILES; i++) {
       const t = tiles[i] ?? {};
       $('haLbl' + i).value = t.label ?? '';
-      $('haTyp' + i).value = t.type ?? 'temperature';
-      $('haIco' + i).value = t.icon ?? 'auto';
+      $('haIco' + i).value = t.icon ?? 'gauge';
       $('haEnt' + i).value = t.entity ?? '';
-      $('haEn2' + i).value = t.entity2 ?? '';
     }
 
     el.ssid.value     = s.wifi?.ssid     ?? '';
@@ -182,7 +180,7 @@
         theme:    Number(el.radarTheme.value) || 0,
         alert_km: Math.max(0, Number(el.radarAlert.value) || 0),
         auto_km:  Math.max(0, Number(el.radarAuto.value) || 0),
-        auto_base: Number(el.radarAutoBase.value) || 0,
+        auto_base: (el.radarAutoWx.checked ? 1 : 0) | (el.radarAutoHome.checked ? 2 : 0),
       }});
       el.radarStatus.textContent = 'Saved.';
       setTimeout(() => { el.radarStatus.textContent = ''; }, 3000);
@@ -198,11 +196,9 @@
       if (el.haToken.value) home.token = el.haToken.value;   // blank = keep current
       for (let i = 0; i < HA_TILES; i++) {
         home.tiles.push({
-          label:   $('haLbl' + i).value.trim(),
-          type:    $('haTyp' + i).value,
-          icon:    $('haIco' + i).value,
-          entity:  $('haEnt' + i).value.trim(),
-          entity2: $('haEn2' + i).value.trim(),
+          label:  $('haLbl' + i).value.trim(),
+          icon:   $('haIco' + i).value,
+          entity: $('haEnt' + i).value.trim(),
         });
       }
       sendConfig({ home });

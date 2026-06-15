@@ -59,11 +59,9 @@ void begin() {
     load_scalar("h_poll", snap.home.poll_s);
     for (int i = 0; i < HOME_TILES; i++) {
         char k[8];
-        snprintf(k, sizeof(k), "h%dtyp", i); load_string(k, snap.home.type[i],    sizeof(snap.home.type[i]));
-        snprintf(k, sizeof(k), "h%dico", i); load_string(k, snap.home.icon[i],    sizeof(snap.home.icon[i]));
-        snprintf(k, sizeof(k), "h%dlbl", i); load_string(k, snap.home.label[i],   sizeof(snap.home.label[i]));
-        snprintf(k, sizeof(k), "h%dent", i); load_string(k, snap.home.entity[i],  sizeof(snap.home.entity[i]));
-        snprintf(k, sizeof(k), "h%den2", i); load_string(k, snap.home.entity2[i], sizeof(snap.home.entity2[i]));
+        snprintf(k, sizeof(k), "h%dico", i); load_string(k, snap.home.icon[i],   sizeof(snap.home.icon[i]));
+        snprintf(k, sizeof(k), "h%dlbl", i); load_string(k, snap.home.label[i],  sizeof(snap.home.label[i]));
+        snprintf(k, sizeof(k), "h%dent", i); load_string(k, snap.home.entity[i], sizeof(snap.home.entity[i]));
     }
 }
 
@@ -90,11 +88,9 @@ void save() {
     prefs.putUShort("h_poll", snap.home.poll_s);
     for (int i = 0; i < HOME_TILES; i++) {
         char k[8];
-        snprintf(k, sizeof(k), "h%dtyp", i); prefs.putString(k, snap.home.type[i]);
         snprintf(k, sizeof(k), "h%dico", i); prefs.putString(k, snap.home.icon[i]);
         snprintf(k, sizeof(k), "h%dlbl", i); prefs.putString(k, snap.home.label[i]);
         snprintf(k, sizeof(k), "h%dent", i); prefs.putString(k, snap.home.entity[i]);
-        snprintf(k, sizeof(k), "h%den2", i); prefs.putString(k, snap.home.entity2[i]);
     }
 }
 
@@ -156,7 +152,7 @@ bool apply_json(JsonVariantConst patch) {
         snap.radar.theme    = constrain(snap.radar.theme, 0, 1);
         snap.radar.alert_km = constrain(snap.radar.alert_km, 0, 50);
         snap.radar.auto_km  = constrain(snap.radar.auto_km, 0, 400);
-        snap.radar.auto_base = constrain(snap.radar.auto_base, 0, 1);
+        snap.radar.auto_base = constrain(snap.radar.auto_base, 0, 3);   // bitmask
     }
 
     JsonVariantConst h = patch["home"];
@@ -169,11 +165,9 @@ bool apply_json(JsonVariantConst patch) {
         if (!tiles.isNull()) {
             for (int i = 0; i < HOME_TILES && i < (int)tiles.size(); i++) {
                 JsonVariantConst t = tiles[i];
-                changed |= maybe_set_str(t["type"],    snap.home.type[i],    sizeof(snap.home.type[i]));
-                changed |= maybe_set_str(t["icon"],    snap.home.icon[i],    sizeof(snap.home.icon[i]));
-                changed |= maybe_set_str(t["label"],   snap.home.label[i],   sizeof(snap.home.label[i]));
-                changed |= maybe_set_str(t["entity"],  snap.home.entity[i],  sizeof(snap.home.entity[i]));
-                changed |= maybe_set_str(t["entity2"], snap.home.entity2[i], sizeof(snap.home.entity2[i]));
+                changed |= maybe_set_str(t["icon"],   snap.home.icon[i],   sizeof(snap.home.icon[i]));
+                changed |= maybe_set_str(t["label"],  snap.home.label[i],  sizeof(snap.home.label[i]));
+                changed |= maybe_set_str(t["entity"], snap.home.entity[i], sizeof(snap.home.entity[i]));
             }
         }
     }
@@ -211,11 +205,9 @@ void to_json(JsonObject out, bool include_secrets) {
     JsonArray tiles = hh["tiles"].to<JsonArray>();
     for (int i = 0; i < HOME_TILES; i++) {
         JsonObject t = tiles.add<JsonObject>();
-        t["type"]    = snap.home.type[i];
-        t["icon"]    = snap.home.icon[i];
-        t["label"]   = snap.home.label[i];
-        t["entity"]  = snap.home.entity[i];
-        t["entity2"] = snap.home.entity2[i];
+        t["icon"]   = snap.home.icon[i];
+        t["label"]  = snap.home.label[i];
+        t["entity"] = snap.home.entity[i];
     }
 
     JsonObject w = out["wifi"].to<JsonObject>();

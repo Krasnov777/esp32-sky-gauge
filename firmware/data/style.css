@@ -100,6 +100,7 @@ select {
   padding: 8px 10px; color: var(--text); font: inherit;
 }
 select:focus { outline: none; border-color: var(--accent); }
+select.iconsel { font-size: 20px; line-height: 1.1; }
 
 .hint code {
   background: #0d1116; border: 1px solid var(--line); border-radius: 4px;

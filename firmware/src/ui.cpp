@@ -842,21 +842,10 @@ lv_obj_t* home_ring(lv_obj_t* p, int d, int x, int y, lv_color_t c) {
     return o;
 }
 
-// auto-icon derived from a tile's type preset key
-HomeIcon home_auto_icon(const char* type) {
-    if (!strcmp(type, "temperature") || !strcmp(type, "climate")) return HI_THERMO;
-    if (!strcmp(type, "humidity"))                                return HI_DROPLET;
-    if (!strcmp(type, "power") || !strcmp(type, "voltage"))       return HI_BOLT;
-    if (!strcmp(type, "battery"))                                 return HI_BATTERY;
-    if (!strcmp(type, "custom"))                                  return HI_HOUSE;
-    return HI_GAUGE;   // co2, pressure, fallback
-}
-
-HomeIcon home_icon_for(const char* iconKey, const char* type) {
-    if (!iconKey[0] || !strcmp(iconKey, "auto")) return home_auto_icon(type);
+HomeIcon home_icon_for(const char* iconKey) {
     for (uint8_t i = 0; i < HI_COUNT; i++)
         if (!strcmp(iconKey, HOME_ICON_KEYS[i])) return (HomeIcon)i;
-    return home_auto_icon(type);
+    return HI_GAUGE;   // unknown/empty → generic gauge
 }
 
 void build_home_icons() {
@@ -1019,10 +1008,9 @@ void home_timer_cb(lv_timer_t*) {
     if (home_ix >= n) home_ix = 0;
     int ti = order[home_ix];
     const auto& tile = snap.tiles[ti];
-    auto info = homeassistant::type_info(cfg.type[ti]);
 
     // icon for this page
-    HomeIcon ic = home_icon_for(cfg.icon[ti], cfg.type[ti]);
+    HomeIcon ic = home_icon_for(cfg.icon[ti]);
     for (uint8_t i = 0; i < HI_COUNT; i++) {
         if (i == ic) lv_obj_remove_flag(home_ico[i], LV_OBJ_FLAG_HIDDEN);
         else         lv_obj_add_flag(home_ico[i], LV_OBJ_FLAG_HIDDEN);
@@ -1030,26 +1018,29 @@ void home_timer_cb(lv_timer_t*) {
 
     set_text_if_changed(home_label, cfg.label[ti]);
 
+    // value = HA state + its unit_of_measurement (a space before letter units,
+    // none before "%" or "°").
     char buf[40];
-    bool custom = strcmp(cfg.type[ti], "custom") == 0;
-    if (!tile.ok)        snprintf(buf, sizeof(buf), "--");
-    else if (custom)     snprintf(buf, sizeof(buf), "%s", tile.raw);
-    else                 snprintf(buf, sizeof(buf), "%.*f%s", info.decimals, tile.value, info.unit);
-    set_text_if_changed(home_value, buf);
-
-    if (info.secondary && tile.sec_ok) {
-        snprintf(buf, sizeof(buf), "%d%%", (int)(tile.sec_value + 0.5f));
-        set_text_if_changed(home_sec, buf);
+    if (!tile.ok) {
+        snprintf(buf, sizeof(buf), "--");
+    } else if (!tile.unit[0]) {
+        snprintf(buf, sizeof(buf), "%s", tile.value);
     } else {
-        set_text_if_changed(home_sec, "");
+        bool tight = tile.unit[0] == '%' || (uint8_t)tile.unit[0] == 0xC2;  // % or °
+        snprintf(buf, sizeof(buf), tight ? "%s%s" : "%s %s", tile.value, tile.unit);
     }
+    set_text_if_changed(home_value, buf);
+    set_text_if_changed(home_sec, "");   // no secondary (one entity per page)
 
-    // dots
+    // page dots — centered on the count of configured pages (n), not on the
+    // fixed HOME_TILES, so the visible row stays centred on the round screen.
     for (int i = 0; i < settings::HOME_TILES; i++) {
         if (i < n) {
-            lv_obj_remove_flag(home_dot[i], LV_OBJ_FLAG_HIDDEN);
+            lv_obj_align(home_dot[i], LV_ALIGN_BOTTOM_MID,
+                         (int)((i - (n - 1) / 2.0f) * 14), -18);
             lv_obj_set_style_bg_color(home_dot[i],
                 i == home_ix ? COL_ACCENT : COL_DIM_TEXT, 0);
+            lv_obj_remove_flag(home_dot[i], LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(home_dot[i], LV_OBJ_FLAG_HIDDEN);
         }
@@ -1057,15 +1048,25 @@ void home_timer_cb(lv_timer_t*) {
 }
 
 // ── Auto mode supervisor ─────────────────────────────────────────────────────
-// The resting screen (Weather or Home, per radar.auto_base) is shown until an
-// airborne aircraft comes within radar.auto_km; then the scope takes over, and
-// stays for 30 s after the last contact so brief poll gaps don't cause
-// flapping. auto_km == 0 disables switching (Auto then just shows the base).
-// auto_km is distinct from alert_km (the on-scope pulse/pin).
-constexpr uint32_t AUTO_HOLD_MS = 30000;
+// The resting screen(s) (Weather and/or Home, per the radar.auto_base bitmask)
+// are shown until an airborne aircraft comes within radar.auto_km; then the
+// scope takes over, and stays for 30 s after the last contact so brief poll
+// gaps don't cause flapping. If both resting screens are enabled they alternate
+// every AUTO_ROTATE_MS. auto_km == 0 disables the radar switch.
+constexpr uint32_t AUTO_HOLD_MS   = 30000;
+constexpr uint32_t AUTO_ROTATE_MS = 8000;
 
 lv_obj_t* auto_base_screen() {
-    return settings::state().radar.auto_base == 1 ? screen_home : screen_wx;
+    uint8_t m = settings::state().radar.auto_base;
+    bool wx   = (m & 1) || m == 0;   // 0 (unset) → Weather
+    bool home = m & 2;
+    if (wx && home) {
+        static uint32_t t0 = 0; static bool show_home = false;
+        uint32_t now = millis();
+        if (now - t0 >= AUTO_ROTATE_MS) { t0 = now; show_home = !show_home; }
+        return show_home ? screen_home : screen_wx;
+    }
+    return home ? screen_home : screen_wx;
 }
 
 void auto_timer_cb(lv_timer_t*) {

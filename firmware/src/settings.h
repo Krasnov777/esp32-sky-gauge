@@ -26,14 +26,12 @@ struct HomeConfig {
     char token[224]  = "";       // HA long-lived tokens are ~180-char JWTs
     uint16_t poll_s  = 15;       // entity refresh interval
 
-    // Per-tile config. `type` is a preset key bundling unit + decimals +
-    // whether a secondary (humidity-style) value is shown. `icon` selects a
-    // drawn glyph ("auto" = derive from type). entity2 is optional.
-    char type[HOME_TILES][16]    = {"temperature", "temperature", "humidity", "power", "battery"};
-    char icon[HOME_TILES][16]    = {"auto", "auto", "auto", "auto", "auto"};
-    char label[HOME_TILES][20]   = {"Living", "Bedroom", "Humidity", "Power", "Battery"};
-    char entity[HOME_TILES][48]  = {"", "", "", "", ""};
-    char entity2[HOME_TILES][48] = {"", "", "", "", ""};
+    // One entity per page: a drawn icon (key from the icon pool), a label, and
+    // the entity_id. The value's unit comes from HA itself (the entity's
+    // unit_of_measurement attribute), so no per-tile type/unit is needed.
+    char icon[HOME_TILES][16]   = {"thermometer", "droplet", "bolt", "battery", "gauge"};
+    char label[HOME_TILES][20]  = {"Living", "Bedroom", "Humidity", "Power", "Battery"};
+    char entity[HOME_TILES][48] = {"", "", "", "", ""};
 };
 
 struct RadarConfig {
@@ -48,7 +46,10 @@ struct RadarConfig {
     uint8_t  theme      = 0;      // 0 = green phosphor, 1 = amber
     uint16_t alert_km   = 3;      // pin focus + pulse when traffic this close; 0 = off
     uint16_t auto_km    = 5;      // Auto mode: show radar while traffic this close; 0 = off
-    uint8_t  auto_base  = 0;      // Auto resting screen: 0 = Weather, 1 = Home
+    // Auto resting screens — bitmask: bit0 = Weather, bit1 = Home Integration.
+    // If both are set, Auto alternates between them while no traffic is near.
+    // 0 is treated as Weather.
+    uint8_t  auto_base  = 1;
 };
 
 struct Snapshot {
@@ -76,7 +77,7 @@ Snapshot& state();
 // Apply a JSON patch onto the snapshot. Returns true if anything changed.
 // Recognized keys: mode, brightness,
 //                  radar.{lat,lon,range_km,poll_s,show_tags,theme,alert_km,auto_km},
-//                  home.{url,token,poll_s,tiles:[{type,icon,label,entity,entity2}]},
+//                  home.{url,token,poll_s,tiles:[{icon,label,entity}]},
 //                  wifi.{ssid,password,hostname}.
 bool apply_json(JsonVariantConst patch);
 

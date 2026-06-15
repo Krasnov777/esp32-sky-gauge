@@ -59,7 +59,7 @@ void connect_or_ap() {
     const auto& s = settings::state();
     bool connected = false;
     if (strlen(s.wifi_ssid) > 0) {
-        ui::update_status("Connecting WiFi…", s.wifi_ssid);
+        ui::update_status("Connecting WiFi...", s.wifi_ssid);
         connected = try_sta(s.wifi_ssid, s.wifi_password);
     }
     if (!connected) {
@@ -88,7 +88,7 @@ void setup_ota() {
         ota_holds_netlock =
             xSemaphoreTake(netlock::handle(), pdMS_TO_TICKS(15000)) == pdTRUE;
         ui::show_status();
-        ui::update_status("OTA update", "starting…");
+        ui::update_status("OTA update", "starting...");
         display::tick();
         log_i("OTA started (%s)",
               ArduinoOTA.getCommand() == U_FLASH ? "firmware" : "filesystem");
@@ -104,7 +104,7 @@ void setup_ota() {
         display::tick();
     });
     ArduinoOTA.onEnd([]() {
-        ui::update_status("OTA done", "rebooting…");
+        ui::update_status("OTA done", "rebooting...");
         display::tick();
         if (ota_holds_netlock) xSemaphoreGive(netlock::handle());
     });
@@ -133,7 +133,7 @@ void setup() {
     // Show the status screen during boot so the user can read network messages,
     // then switch to their saved mode once the network is up.
     ui::show_status();
-    ui::update_status("Booting…", "");
+    ui::update_status("Booting...", "");
     display::tick();
 
     connect_or_ap();
