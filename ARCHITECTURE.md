@@ -466,7 +466,9 @@ Mirrors the weather module (mode-gated core-0 task, mutex-guarded snapshot,
 resting screen (`radar.auto_base & 2`). Each poll cycle (`home.poll_s`,
 default 15 s) fetches up to `HOME_TILES` (8) configured entities:
 `GET {home.url}/api/states/{entity}` with `Authorization: Bearer {token}`,
-keeping the `state` string and `attributes.unit_of_measurement`. Fetches go
+keeping the `state` string and `attributes.unit_of_measurement`. A purely
+numeric state is rounded to 1 decimal for display (HA reports floats at full
+precision, e.g. `21.7000007629395`); non-numeric states (`on`, `home`) stay verbatim. Fetches go
 through `net::http_get_text(..., bearer)` — the shared helper grew a
 scheme-aware (http/https) bearer-capable text GET, still under the global net
 lock so HA traffic never races the radar/weather TLS handshakes.

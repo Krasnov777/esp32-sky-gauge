@@ -28,7 +28,7 @@ bool get_state(const char* base, const char* token, const char* entity,
     while (n > 0 && base[n - 1] == '/') n--;
     snprintf(url, sizeof(url), "%.*s/api/states/%s", n, base, entity);
 
-    char body[768];
+    char body[2048];
     if (!net::http_get_text(url, body, sizeof(body), token)) return false;
 
     JsonDocument doc;
@@ -36,7 +36,20 @@ bool get_state(const char* base, const char* token, const char* entity,
     const char* state = doc["state"] | "";
     if (!state[0] || !strcmp(state, "unavailable") || !strcmp(state, "unknown"))
         return false;
-    strlcpy(val_out, state, val_cap);
+
+    // HA reports floats at full precision (e.g. "21.7000007629395"). Round a
+    // purely-numeric state to 1 decimal for a glanceable display, and strip a
+    // trailing ".0"; keep non-numeric states ("on", "home", …) verbatim.
+    char* end = nullptr;
+    double num = strtod(state, &end);
+    if (end != state && *end == '\0') {
+        snprintf(val_out, val_cap, "%.1f", num);
+        char* p = val_out + strlen(val_out) - 1;
+        while (p > val_out && *p == '0') *p-- = '\0';
+        if (*p == '.') *p = '\0';
+    } else {
+        strlcpy(val_out, state, val_cap);
+    }
     strlcpy(unit_out, doc["attributes"]["unit_of_measurement"] | "", unit_cap);
     return true;
 }
