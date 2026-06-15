@@ -592,16 +592,27 @@ The protocol is intentionally tiny — five message types in total.
 | Region | Used by | Approx size |
 |---|---|---|
 | Flash (16 MB) | bootloader, partition table, app slot (6.5 MB), LittleFS (~5 MB), OTA slot, NVS | app slot at ~24% used |
-| DRAM (320 KB) | Arduino runtime, WiFi stack, two LVGL draw buffers (2×19.2 KB), LVGL heap (96 KB), AsyncTCP buffers, poller task stacks (2×10 KB) | ~64% static |
+| DRAM (320 KB) | Arduino runtime, WiFi stack, two LVGL draw buffers (2×19.2 KB), LVGL pool (`LV_MEM_SIZE` 64 KB), AsyncTCP buffers, three poller task stacks (3×10 KB) | ~55% static |
 | QSPI PSRAM (2 MB) | Radar mode: HTTP response buffer (≤700 KB, transient) + filtered JsonDocument | mostly free |
 
 The two LVGL draw buffers are declared `DMA_ATTR` so they live in DRAM (DMA
-can't access PSRAM on ESP32-S3 SPI). LVGL's heap (`LV_MEM_SIZE`) is 96 KB.
+can't access PSRAM on ESP32-S3 SPI).
 
-**The tight resource is internal DRAM heap.** Each TLS handshake (radar +
-weather pollers) needs ~45 KB of free heap; when static usage crept past ~73 %
-(60-line draw buffers), `start_ssl_client` began failing with -1 and the HTTP
-server starved. If you grow buffers/pools, watch the serial log for TLS errors.
+**The tight resource is the internal DRAM system heap, and the LVGL pool is a
+separate static reservation that competes with it.** A TLS handshake (mbedtls,
+used by every poller) needs a large allocation; if the system heap is low it
+fails with `esp-sha: Failed to allocate buf memory` / `start_ssl_client: -1`
+and connections drop. This bit us twice:
+- 60-line draw buffers pushed static DRAM too high → TLS -1.
+- `LV_MEM_SIZE` was 96 KB but LVGL only uses ~34 KB across all screens, so
+  ~58 KB sat idle in the pool while the heap starved (free ~61 KB, max-block
+  ~35 KB, dipping to ~3 KB under load). Adding a third poller task tipped it
+  into frequent failures. Cutting `LV_MEM_SIZE` to 64 KB freed ~32 KB to the
+  heap (free → ~94 KB, min-free → ~38 KB, TLS failures → 0).
+
+Lesson: size `LV_MEM_SIZE` to measured LVGL usage (`lv_mem_monitor`) plus
+headroom — don't over-provision it — and watch `ESP.getFreeHeap()` /
+`getMaxAllocHeap()` when adding tasks, buffers, or pools.
 
 ---
 
