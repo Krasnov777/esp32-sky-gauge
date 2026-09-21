@@ -47,4 +47,8 @@ size_t get_aircraft(Aircraft* out, size_t cap);
 Status   status();
 uint32_t data_age_ms();   // ms since last successful fetch (UINT32_MAX if never)
 
+// True when the last successful fetch held a 7500/7600/7700 contact. A failed
+// poll does not clear it, so pair it with data_age_ms() before acting on it.
+bool     emergency();
+
 }  // namespace radar

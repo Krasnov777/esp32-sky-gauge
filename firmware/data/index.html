@@ -124,6 +124,27 @@
   </section>
 
   <section class="card">
+    <h2>Night</h2>
+    <div class="grid2">
+      <label>From (hour)<input type="number" id="nightFrom" min="0" max="23"></label>
+      <label>Until (hour)<input type="number" id="nightTo" min="0" max="23"></label>
+    </div>
+    <label>Night brightness
+      <input type="range" id="nightBright" min="0" max="255" value="0">
+      <output id="nightBrightVal">0</output>
+    </label>
+    <label>Time zone<input type="text" id="tz" placeholder="CET-1CEST,M3.5.0,M10.5.0/3"></label>
+    <div class="row">
+      <button id="wakeBtn">Wake screen</button>
+      <span id="nightStatus" class="hint"></span>
+    </div>
+    <p class="hint">Night brightness 0 switches the backlight off entirely.
+      Equal hours disable the window. The clock comes from NTP, so the screen
+      never blanks until time has synced — and an emergency squawk
+      (7500/7600/7700) on the radar still lights the scope.</p>
+  </section>
+
+  <section class="card">
     <h2>Network</h2>
     <div class="grid2">
       <label>SSID     <input type="text"     id="ssid"     placeholder="MyNetwork" autocomplete="off"></label>

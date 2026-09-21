@@ -20,6 +20,7 @@ size_t   aircraft_n = 0;
 volatile Status   cur_status = Status::Scanning;
 volatile uint32_t last_ok_ms = 0;
 volatile bool     have_data  = false;
+volatile bool     emerg      = false;
 
 // ── Route cache (callsign → "JFK>LHR") ───────────────────────────────────────
 // Small ring: ~24 concurrent callsigns is plenty for a 100 km scope. Unknown
@@ -118,10 +119,17 @@ void poll_positions(float home_lat, float home_lon, uint16_t range_km) {
         if (n < MAX_AIRCRAFT) n++;
     }
 
+    // Only the kept (nearest MAX_AIRCRAFT) contacts count: the flag exists to
+    // decide whether lighting the screen would show the user anything.
+    bool any_emerg = false;
+    for (size_t i = 0; i < n; i++)
+        if (local[i].emergency) { any_emerg = true; break; }
+
     xSemaphoreTake(mutex, portMAX_DELAY);
     memcpy(aircraft, local, sizeof(local));
     aircraft_n = n;
     xSemaphoreGive(mutex);
+    emerg = any_emerg;
 
     last_ok_ms = millis();
     have_data  = true;
@@ -231,6 +239,8 @@ size_t get_aircraft(Aircraft* out, size_t cap) {
 }
 
 Status status() { return cur_status; }
+
+bool emergency() { return emerg; }
 
 uint32_t data_age_ms() {
     return have_data ? millis() - last_ok_ms : UINT32_MAX;

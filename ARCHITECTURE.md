@@ -66,6 +66,7 @@ esp-lcd-project/
 │   │   ├── display.{h,cpp}            LovyanGFX panel + LVGL flush callback
 │   │   ├── settings.{h,cpp}           NVS-backed config + JSON in/out
 │   │   ├── ui.{h,cpp}                 LVGL screens (radar scope, weather, home, boot status)
+│   │   ├── nightmode.{h,cpp}          SNTP clock + night backlight window (owns the backlight)
 │   │   ├── radar.{h,cpp}              poller for Radar mode (adsb.lol + adsbdb)
 │   │   ├── weather.{h,cpp}            poller for Weather mode (buienradar, Open-Meteo fallback)
 │   │   ├── mdi48.c                    generated LVGL Material Design Icons font (Home mode)
@@ -95,6 +96,7 @@ flowchart TB
   radar["radar.{h,cpp}<br/>HTTPS poller (core 0)"]
   weather["weather.{h,cpp}<br/>HTTPS poller (core 0)"]
   homeassistant["homeassistant.{h,cpp}<br/>HA REST poller (core 0)"]
+  nightmode["nightmode.{h,cpp}<br/>SNTP + backlight window"]
 
   board["board_config.h<br/>pin map"]
   lvconf["lv_conf.h<br/>LVGL build cfg"]
@@ -106,6 +108,12 @@ flowchart TB
   main --> radar
   main --> weather
   main --> homeassistant
+  main --> nightmode
+
+  nightmode --> display
+  nightmode --> settings
+  nightmode --> radar
+  ui --> nightmode
 
   ui --> radar
   ui --> weather
@@ -122,7 +130,31 @@ flowchart TB
   web --> settings
   web --> ui
   web --> display
+  web --> nightmode
 ```
+
+### Night window
+
+`nightmode` is the only module that calls `display::set_brightness()`. Everything
+else — the boot sequence, the web UI's brightness slider — goes through
+`nightmode::refresh()` or `wake()`, so the effective level is decided in one
+place instead of racing between a slider drag and the schedule.
+
+Between `night_from` and `night_to` (a window that normally wraps midnight) the
+backlight drops to `night_bright`, and `night_bright == 0` means the backlight
+is switched off rather than driven very dim. The clock comes from SNTP
+(`configTzTime` with the configured POSIX `tz`); until it syncs, `in_window()`
+returns false and the panel simply stays on — a gauge that went dark because
+NTP was unreachable would be a worse failure than one that stayed lit.
+
+Nothing on the device can wake it — the board has no buttons — so `wake()` is
+driven from the web UI (a button, and implicitly any config change) and lights
+the panel for 20 s at `min(WAKE_BRIGHT, brightness)`. The one autonomous
+exception is `emergency_override()`: a 7500/7600/7700 contact in fresh radar
+data lights the panel at full brightness, and the Auto supervisor treats it as
+traffic so the scope is what appears. That only works while the radar poller is
+running (Radar and Auto modes) — in Weather and Home modes it is idle and there
+is nothing to detect.
 
 Each `.cpp` lives in its own anonymous namespace (`namespace { ... }`) for
 internal state, with a small public surface in the `.h`. Nothing reaches across
@@ -564,13 +596,13 @@ The protocol is intentionally tiny — five message types in total.
 |---|---|---|---|
 | `hello` | — | any | reply with full `state` snapshot |
 | `config` | `patch` (sparse settings object) | web UI | apply + persist (debounced) + broadcast |
-| `command` | `cmd` ∈ `"reboot"`, `"factory_reset"` | web UI | the obvious thing |
+| `command` | `cmd` ∈ `"reboot"`, `"factory_reset"`, `"wake"` | web UI | the obvious thing; `wake` lights the panel for 20 s during the night window |
 
 ### Device → client
 
 | `type` | Fields | Recipient | Trigger |
 |---|---|---|---|
-| `state` | `data` (full Snapshot, password redacted) | the client that sent `hello`, or all clients after a config change | hello / config |
+| `state` | `data` (full Snapshot, password redacted, plus `live.{night_blanked,night_active,time_ok}`) | the client that sent `hello`, or all clients after a config change | hello / config |
 | `radar` | `ac` (array of `{cs,rt,x,y,alt,gs,trk,vr,gnd,emg}`), `age` ms, `range` km | all clients, every 2 s | mode == Radar; lets the web UI render a live scope (positions are km east/north of home — clients dead-reckon with `gs`+`trk`) |
 
 ### Message examples

@@ -44,6 +44,11 @@ void begin() {
                     ? static_cast<Mode>(mode_u8) : Mode::Radar;
     load_scalar("bri", snap.brightness);
 
+    load_scalar("n_from", snap.night_from);
+    load_scalar("n_to",   snap.night_to);
+    load_scalar("n_bri",  snap.night_bright);
+    load_string("tz", snap.tz, sizeof(snap.tz));
+
     load_scalar("r_lat",  snap.radar.lat);
     load_scalar("r_lon",  snap.radar.lon);
     load_scalar("r_rng",  snap.radar.range_km);
@@ -72,6 +77,11 @@ void save() {
 
     prefs.putUChar("mode", static_cast<uint8_t>(snap.mode));
     prefs.putUChar("bri",  snap.brightness);
+
+    prefs.putUChar("n_from", snap.night_from);
+    prefs.putUChar("n_to",   snap.night_to);
+    prefs.putUChar("n_bri",  snap.night_bright);
+    prefs.putString("tz",    snap.tz);
 
     prefs.putFloat("r_lat",  snap.radar.lat);
     prefs.putFloat("r_lon",  snap.radar.lon);
@@ -136,6 +146,16 @@ bool apply_json(JsonVariantConst patch) {
 
     changed |= maybe_set<uint8_t>(patch["brightness"], snap.brightness);
 
+    JsonVariantConst nt = patch["night"];
+    if (!nt.isNull()) {
+        changed |= maybe_set<uint8_t>(nt["from"],   snap.night_from);
+        changed |= maybe_set<uint8_t>(nt["to"],     snap.night_to);
+        changed |= maybe_set<uint8_t>(nt["bright"], snap.night_bright);
+        changed |= maybe_set_str(nt["tz"], snap.tz, sizeof(snap.tz));
+        snap.night_from = constrain(snap.night_from, 0, 23);
+        snap.night_to   = constrain(snap.night_to,   0, 23);
+    }
+
     JsonVariantConst r = patch["radar"];
     if (!r.isNull()) {
         changed |= maybe_set<float>(r["lat"], snap.radar.lat);
@@ -194,6 +214,12 @@ bool apply_json(JsonVariantConst patch) {
 void to_json(JsonObject out, bool include_secrets) {
     out["mode"]       = static_cast<uint8_t>(snap.mode);
     out["brightness"] = snap.brightness;
+
+    JsonObject nt = out["night"].to<JsonObject>();
+    nt["from"]   = snap.night_from;
+    nt["to"]     = snap.night_to;
+    nt["bright"] = snap.night_bright;
+    nt["tz"]     = snap.tz;
 
     JsonObject r = out["radar"].to<JsonObject>();
     r["lat"]       = snap.radar.lat;

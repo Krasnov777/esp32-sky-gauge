@@ -43,8 +43,8 @@ from HA — pages cycle automatically).*
 |:---:|:---:|
 | ![HA temperature page](docs/home.png) | ![HA humidity page](docs/home2.png) |
 
-Mode, location, radar range/theme/alert, brightness, hostname and WiFi
-credentials are configurable from the web UI. The web UI shows only the cards
+Mode, location, radar range/theme/alert, brightness, the night-blanking window,
+hostname and WiFi credentials are configurable from the web UI. The web UI shows only the cards
 relevant to the selected mode (tab-style), and mirrors the radar scope live on
 a canvas.
 
@@ -139,6 +139,12 @@ the IP shown on screen). Cards appear per selected mode:
   (stored write-only, never sent back), poll interval, and a dynamic list of
   entity pages (label, icon glyph picker, entity) with **+ Add page** / **Remove**
   buttons (1–8 pages); explicit **Save** button
+- **Night** — an hours window in which the backlight drops to a night level, or
+  switches **off entirely** when that level is 0 (equal hours disable it), plus
+  the POSIX time zone and a **Wake screen** button. The device has no buttons,
+  so the web UI is the way back in; the clock is NTP, and the screen never
+  blanks until it has synced. An emergency squawk (7500/7600/7700) on fresh
+  radar data still lights the scope — always shown
 - **Display** — backlight brightness + a **Screenshot** button that captures
   exactly what's on the round LCD (LVGL snapshot → 24-bit BMP, served at
   `/shot.bmp`; scriptable: `curl -X POST http://<device>/api/shot && sleep 1 &&

@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "board_config.h"
+#include "nightmode.h"
 #include "radar.h"
 #include "weather.h"
 #include "homeassistant.h"
@@ -1005,6 +1006,11 @@ void auto_timer_cb(lv_timer_t*) {
             }
         }
     }
+
+    // Inside the night window an emergency squawk is the one thing allowed to
+    // light the panel. Show it the scope when that happens — waking the screen
+    // onto a weather card would defeat the point.
+    if (nightmode::emergency_override()) traffic = true;
 
     uint32_t now = millis();
     if (traffic) last_traffic_ms = now;

@@ -7,6 +7,7 @@
 
 #include "settings.h"
 #include "display.h"
+#include "nightmode.h"
 #include "ui.h"
 #include "web_server.h"
 #include "radar.h"
@@ -152,13 +153,15 @@ void setup() {
     uint32_t t0 = millis();
     while (millis() - t0 < 2500) display::tick();
 
-    display::set_brightness(settings::state().brightness);
+    // Owns the backlight from here on — nothing else calls set_brightness().
+    nightmode::begin();
     ui::set_mode(settings::state().mode);
 }
 
 void loop() {
     display::tick();
     web::loop_tick();
+    nightmode::tick();
     ArduinoOTA.handle();
 
     // STA association can drop and stay down silently (observed in the wild:

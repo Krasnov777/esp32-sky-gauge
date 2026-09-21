@@ -7,6 +7,8 @@
 
 #include <Arduino.h>
 #include <LittleFS.h>
+
+#include "nightmode.h"
 #include <ESPAsyncWebServer.h>
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
@@ -38,11 +40,22 @@ void flush_save() {
 // thread as lv_timer_handler) applies the UI change.
 volatile bool ui_refresh_pending = false;
 
+// The settings snapshot plus the handful of live values the page shows next
+// to them. Kept here rather than in settings::to_json(), which is strictly
+// persisted configuration.
+void fill_state(JsonObject data) {
+    settings::to_json(data, false);
+    JsonObject live = data["live"].to<JsonObject>();
+    live["night_blanked"] = nightmode::blanked();
+    live["night_active"]  = nightmode::in_window();
+    live["time_ok"]       = nightmode::time_valid();
+}
+
 void send_state_to(AsyncWebSocketClient* client) {
     JsonDocument doc;
     doc["type"] = "state";
     JsonObject data = doc["data"].to<JsonObject>();
-    settings::to_json(data, false);
+    fill_state(data);
 
     String out;
     serializeJson(doc, out);
@@ -53,7 +66,7 @@ void broadcast_all_state_inline() {
     JsonDocument doc;
     doc["type"] = "state";
     JsonObject data = doc["data"].to<JsonObject>();
-    settings::to_json(data, false);
+    fill_state(data);
 
     String out;
     serializeJson(doc, out);
@@ -68,7 +81,9 @@ void apply_config_patch(JsonVariantConst patch) {
 
     save_pending = true;
     save_request_ms = millis();
-    display::set_brightness(settings::state().brightness);
+    // wake(), not refresh(): someone is at the web UI right now, and a
+    // brightness drag they cannot see the result of is worse than useless.
+    nightmode::wake();
 
     JsonObjectConst o = patch.as<JsonObjectConst>();
     bool only_brightness = o.size() == 1 && !o["brightness"].isNull();
@@ -105,6 +120,8 @@ void handle_ws_message(AsyncWebSocketClient* client, uint8_t* data, size_t len) 
             flush_save();   // don't lose a debounced config write
             delay(100);
             ESP.restart();
+        } else if (strcmp(cmd, "wake") == 0) {
+            nightmode::wake();
         } else if (strcmp(cmd, "factory_reset") == 0) {
             settings::reset_to_defaults();
             delay(100);
@@ -151,7 +168,7 @@ void register_routes() {
     server.on("/api/state", HTTP_GET, [](AsyncWebServerRequest* req) {
         JsonDocument doc;
         JsonObject root = doc.to<JsonObject>();
-        settings::to_json(root, false);
+        fill_state(root);
         String out;
         serializeJson(doc, out);
         req->send(200, "application/json", out);
@@ -163,7 +180,7 @@ void register_routes() {
             apply_config_patch(json);
             JsonDocument doc;
             JsonObject root = doc.to<JsonObject>();
-            settings::to_json(root, false);
+            fill_state(root);
             String out;
             serializeJson(doc, out);
             req->send(200, "application/json", out);

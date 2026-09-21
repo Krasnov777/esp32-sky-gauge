@@ -117,7 +117,9 @@ void begin() {
     lv_display_set_color_format(lv_disp, LV_COLOR_FORMAT_RGB565);
 
     last_tick_ms = millis();
-    set_brightness(bl_value);
+    // Raw write, not set_brightness(): that one short-circuits when the value
+    // matches bl_value, which it does here by construction.
+    tft.setBrightness(bl_value);
 }
 
 void tick() {
@@ -131,6 +133,9 @@ void tick() {
 }
 
 void set_brightness(uint8_t value) {
+    // nightmode::refresh() re-asserts the level once a second; skip the LEDC
+    // write when nothing has actually changed.
+    if (value == bl_value) return;
     bl_value = value;
     tft.setBrightness(value);
 }

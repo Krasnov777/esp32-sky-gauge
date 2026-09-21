@@ -8,6 +8,9 @@
   const el = {
     conn: $('conn'),
     brightness: $('brightness'), brightnessVal: $('brightnessVal'),
+    nightFrom: $('nightFrom'), nightTo: $('nightTo'),
+    nightBright: $('nightBright'), nightBrightVal: $('nightBrightVal'),
+    tz: $('tz'), wakeBtn: $('wakeBtn'), nightStatus: $('nightStatus'),
     radarLat: $('radarLat'), radarLon: $('radarLon'), radarRange: $('radarRange'),
     radarPoll: $('radarPoll'), radarTags: $('radarTags'),
     radarTheme: $('radarTheme'), radarAlert: $('radarAlert'), radarAuto: $('radarAuto'),
@@ -130,6 +133,17 @@
     el.brightness.value = s.brightness ?? 200;
     el.brightnessVal.value = el.brightness.value;
 
+    el.nightFrom.value = s.night?.from ?? 23;
+    el.nightTo.value   = s.night?.to ?? 7;
+    el.nightBright.value = s.night?.bright ?? 0;
+    el.nightBrightVal.value = el.nightBright.value;
+    el.tz.value = s.night?.tz ?? '';
+    el.nightStatus.textContent =
+      !s.live ? '' :
+      !s.live.time_ok    ? 'waiting for NTP — will not blank' :
+      s.live.night_blanked ? 'screen off now' :
+      s.live.night_active  ? 'in window, screen lit' : 'screen on';
+
     // Radar: 0/0 means "never configured" — leave the inputs blank then.
     const rLat = s.radar?.lat ?? 0, rLon = s.radar?.lon ?? 0;
     el.radarLat.value   = (rLat === 0 && rLon === 0) ? '' : rLat.toFixed(4);
@@ -190,6 +204,25 @@
     el.brightness.addEventListener('input', () => {
       el.brightnessVal.value = el.brightness.value;
       sendConfig({ brightness: Number(el.brightness.value) });
+    });
+
+    // Night: commit on change rather than input — the hour fields are typed,
+    // and a half-typed "1" of "17" would blank the screen for an hour.
+    const sendNight = () => sendConfig({ night: {
+      from:   Number(el.nightFrom.value),
+      to:     Number(el.nightTo.value),
+      bright: Number(el.nightBright.value),
+      tz:     el.tz.value.trim(),
+    }});
+    [el.nightFrom, el.nightTo, el.tz].forEach(i =>
+      i.addEventListener('change', sendNight));
+    el.nightBright.addEventListener('input', () => {
+      el.nightBrightVal.value = el.nightBright.value;
+    });
+    el.nightBright.addEventListener('change', sendNight);
+
+    el.wakeBtn.addEventListener('click', () => {
+      ws?.send(JSON.stringify({ type: 'command', cmd: 'wake' }));
     });
 
     // Radar: explicit save — lat/lon/range belong together, auto-committing

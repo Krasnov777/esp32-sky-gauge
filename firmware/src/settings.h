@@ -63,6 +63,13 @@ struct Snapshot {
     Mode     mode             = Mode::Radar;
     uint8_t  brightness       = 255;
 
+    // Night window — backlight only. This is an IPS LCD, so it is about the
+    // room and the power budget, not burn-in. from == to disables it.
+    uint8_t  night_from       = 23;
+    uint8_t  night_to         = 7;
+    uint8_t  night_bright     = 0;      // 0 = backlight fully off
+    char     tz[48]           = "CET-1CEST,M3.5.0,M10.5.0/3";   // POSIX TZ
+
     RadarConfig radar;
     HomeConfig  home;
 };
@@ -76,7 +83,7 @@ void reset_to_defaults();
 Snapshot& state();
 
 // Apply a JSON patch onto the snapshot. Returns true if anything changed.
-// Recognized keys: mode, brightness,
+// Recognized keys: mode, brightness, night.{from,to,bright,tz},
 //                  radar.{lat,lon,range_km,poll_s,show_tags,theme,alert_km,auto_km},
 //                  home.{url,token,poll_s,tiles:[{icon,label,entity}]},
 //                  wifi.{ssid,password,hostname}.
