@@ -12,12 +12,21 @@
 #include <ESPAsyncWebServer.h>
 #include <AsyncJson.h>
 #include <ArduinoJson.h>
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
+#error "src/secrets.h is missing: copy src/secrets.h.example to src/secrets.h and set the passwords"
+#endif
 
 namespace web {
 namespace {
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
+// HTTP Basic auth on every route, including the /ws handshake (the WebSocket
+// accepts commands). Basic rather than Digest: browsers re-send cached Basic
+// credentials on the WS upgrade, Digest they do not.
+AsyncAuthenticationMiddleware auth;
 
 // NVS writes are debounced: a brightness-slider drag arrives as dozens of
 // config patches per second, and each save() walks every key. Settings apply
@@ -235,6 +244,14 @@ void begin() {
     if (!LittleFS.begin(false)) {
         log_e("LittleFS mount failed — did you upload the filesystem image?");
     }
+
+    auth.setUsername(WEB_USER);
+    auth.setPassword(WEB_PASSWORD);
+    auth.setRealm("Sky Gauge");
+    auth.setAuthFailureMessage("Authentication required");
+    auth.setAuthType(AsyncAuthType::AUTH_BASIC);
+    auth.generateHash();
+    server.addMiddleware(&auth);
 
     ws.onEvent(on_ws_event);
     server.addHandler(&ws);

@@ -177,7 +177,14 @@ bool apply_json(JsonVariantConst patch) {
 
     JsonVariantConst h = patch["home"];
     if (!h.isNull()) {
-        changed |= maybe_set_str(h["url"],   snap.home.url,   sizeof(snap.home.url));
+        bool url_changed = maybe_set_str(h["url"], snap.home.url, sizeof(snap.home.url));
+        changed |= url_changed;
+        // A token was entered for the old server; never send it to a new one
+        // unless the caller supplies the token again in the same patch.
+        if (url_changed && h["token"].isNull() && snap.home.token[0]) {
+            snap.home.token[0] = '\0';
+            changed = true;
+        }
         changed |= maybe_set_str(h["token"], snap.home.token, sizeof(snap.home.token));
         changed |= maybe_set<uint16_t>(h["poll_s"], snap.home.poll_s);
         snap.home.poll_s = constrain(snap.home.poll_s, 5, 600);

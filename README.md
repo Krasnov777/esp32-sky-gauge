@@ -82,16 +82,21 @@ firmware/             PlatformIO project for the ESP32-S3 device
 ### Build
 ```bash
 cd firmware
+cp src/secrets.h.example src/secrets.h   # set OTA_PASSWORD + WEB_PASSWORD (build fails without it)
 pio run                       # compile
 pio run -t upload             # flash the firmware (USB)
 pio run -t uploadfs           # upload the web UI (LittleFS image from data/)
 
-# Over WiFi (ArduinoOTA, port 3232) — no cable needed once deployed:
+# Over WiFi (ArduinoOTA, port 3232, password-protected) — no cable needed once deployed:
+export SKYGAUGE_OTA_PASSWORD=...   # = OTA_PASSWORD in src/secrets.h
 pio run -e ota -t upload      # firmware OTA (screen shows progress %)
 pio run -e ota -t uploadfs    # web UI OTA
 # macOS: if espota reports "No response from device", pass the IP:
 pio run -e ota -t upload --upload-port <device-ip>
 ```
+
+The web UI, `/api/*` and the `/ws` WebSocket require HTTP Basic auth
+(`WEB_USER` / `WEB_PASSWORD` from `secrets.h`); the browser asks once.
 
 To read the serial log, `pio device monitor` works in an interactive terminal.
 (It needs a TTY — in non-interactive shells, read the port with pyserial instead.)

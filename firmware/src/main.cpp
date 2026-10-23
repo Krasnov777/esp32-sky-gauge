@@ -14,6 +14,11 @@
 #include "weather.h"
 #include "homeassistant.h"
 #include "net_lock.h"
+#if __has_include("secrets.h")
+#include "secrets.h"
+#else
+#error "src/secrets.h is missing: copy src/secrets.h.example to src/secrets.h and set the passwords"
+#endif
 
 namespace {
 
@@ -90,6 +95,7 @@ bool ota_holds_netlock = false;
 
 void setup_ota() {
     ArduinoOTA.setHostname(settings::state().hostname);
+    ArduinoOTA.setPassword(OTA_PASSWORD);
     ArduinoOTA.onStart([]() {
         ota_holds_netlock =
             xSemaphoreTake(netlock::handle(), pdMS_TO_TICKS(15000)) == pdTRUE;

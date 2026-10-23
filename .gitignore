@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 .venv/
 .claude/
+
+# Device credentials (see firmware/src/secrets.h.example)
+firmware/src/secrets.h
