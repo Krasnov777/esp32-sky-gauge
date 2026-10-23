@@ -152,8 +152,8 @@ the IP shown on screen). Cards appear per selected mode:
   radar data still lights the scope — always shown
 - **Display** — backlight brightness + a **Screenshot** button that captures
   exactly what's on the round LCD (LVGL snapshot → 24-bit BMP, served at
-  `/shot.bmp`; scriptable: `curl -X POST http://<device>/api/shot && sleep 1 &&
-  curl -o shot.bmp http://<device>/shot.bmp`) — always shown
+  `/shot.bmp`; scriptable: `curl -u admin:<pw> -X POST http://<device>/api/shot && sleep 1 &&
+  curl -u admin:<pw> -o shot.bmp http://<device>/shot.bmp`) — always shown
 - **Network** — SSID / password / hostname, with an explicit **Save & Reboot**
 - **Danger zone** — reboot, factory reset (clears NVS)
 
