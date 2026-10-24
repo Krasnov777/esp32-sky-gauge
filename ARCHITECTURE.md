@@ -375,7 +375,7 @@ Two route surfaces:
 | `/api/factory_reset` | POST | Wipe NVS + restart |
 | `/ws` | WebSocket | Real-time config + state + radar broadcast |
 
-**Auth:** an `AsyncAuthenticationMiddleware` (HTTP Basic, `WEB_USER` / `WEB_PASSWORD` from the gitignored `src/secrets.h`) is added to the server, so it guards every route above, **including the `/ws` upgrade**. It's Basic rather than Digest because browsers re-send cached Basic credentials on the WebSocket handshake. ArduinoOTA requires `OTA_PASSWORD`. A patch that changes `home.url` without `home.token` clears the stored token.
+**Auth:** an `AsyncAuthenticationMiddleware` (HTTP Basic, `WEB_USER` / `WEB_PASSWORD` from the gitignored `src/secrets.h`) is added to the server, so it guards every route above, **including the `/ws` upgrade**. It's Basic rather than Digest because browsers re-send cached Basic credentials on the WebSocket handshake. ArduinoOTA requires `OTA_PASSWORD`. A patch that changes `home.url` without `home.token` clears the stored token. A second middleware answers **403** unless the `Host` header is the device's own IP or hostname (DNS-rebinding guard), and refuses POSTs or WebSocket upgrades whose `Origin` names another site (CSRF guard), because a browser would otherwise replay the cached Basic-auth login.
 
 The WebSocket is the primary control plane; the REST endpoints are an
 escape hatch (e.g., for `curl -u admin:<pw>` / scripting). Both apply patches via the same

@@ -6,6 +6,7 @@
 #include "screenshot.h"
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include <LittleFS.h>
 
 #include "nightmode.h"
@@ -27,6 +28,28 @@ AsyncWebSocket ws("/ws");
 // accepts commands). Basic rather than Digest: browsers re-send cached Basic
 // credentials on the WS upgrade, Digest they do not.
 AsyncAuthenticationMiddleware auth;
+
+// Answer only requests addressed to this device (DNS-rebinding guard) and
+// refuse state changes or WebSocket upgrades started by another site (CSRF):
+// a cached Basic-auth login would otherwise be replayed by the browser.
+static bool hostAllowed(String h) {
+    int colon = h.indexOf(':');
+    if (colon >= 0) h = h.substring(0, colon);
+    h.toLowerCase();
+    String name = String(settings::state().hostname);
+    name.toLowerCase();
+    return h.isEmpty() || h == WiFi.localIP().toString() || h == name || h == name + ".local";
+}
+static bool requestAllowed(AsyncWebServerRequest *r) {
+    if (!hostAllowed(r->host())) return false;
+    bool changesState = r->method() != HTTP_GET && r->method() != HTTP_HEAD && r->method() != HTTP_OPTIONS;
+    if ((changesState || r->hasHeader("Upgrade")) && r->hasHeader("Origin")) {
+        String o = r->getHeader("Origin")->value();
+        int s = o.indexOf("://");
+        if (s < 0 || !hostAllowed(o.substring(s + 3))) return false;
+    }
+    return true;
+}
 
 // NVS writes are debounced: a brightness-slider drag arrives as dozens of
 // config patches per second, and each save() walks every key. Settings apply
@@ -251,6 +274,10 @@ void begin() {
     auth.setAuthFailureMessage("Authentication required");
     auth.setAuthType(AsyncAuthType::AUTH_BASIC);
     auth.generateHash();
+    server.addMiddleware([](AsyncWebServerRequest* r, ArMiddlewareNext next) {
+        if (!requestAllowed(r)) { r->send(403, "text/plain", "Forbidden"); return; }
+        next();
+    });
     server.addMiddleware(&auth);
 
     ws.onEvent(on_ws_event);
