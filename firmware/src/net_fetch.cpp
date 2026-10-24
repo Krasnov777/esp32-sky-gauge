@@ -7,6 +7,12 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 
+// Public APIs reject anonymous clients: since 2026-10 api.adsb.lol answers the
+// default "ESP32HTTPClient" with 403 "User-Agent too generic; include valid
+// contact info". Identify the project instead.
+static constexpr const char* kUserAgent =
+    "SkyGauge (+https://github.com/Krasnov777/esp32-sky-gauge)";
+
 namespace net {
 namespace {
 
@@ -31,6 +37,26 @@ char*  body_buf = nullptr;
 size_t body_cap = 0;
 
 // Read the full body of an in-progress GET into the shared buffer.
+// Decode an HTTP/1.1 chunked body in place ("<hex>[;ext]\r\n<data>\r\n" ...
+// "0\r\n\r\n"). Returns the decoded length. The buffer is NUL-terminated.
+size_t dechunk(char* buf, size_t len) {
+    size_t in = 0, out = 0;
+    while (in < len) {
+        char* end = nullptr;
+        unsigned long n = strtoul(buf + in, &end, 16);
+        const char* crlf = strstr(end, "\r\n");          // skip chunk extensions
+        if (!crlf) break;
+        in = (size_t)(crlf - buf) + 2;
+        if (n == 0) break;                                 // last chunk
+        if (in + n > len) n = len - in;                    // truncated (cap reached)
+        memmove(buf + out, buf + in, n);
+        out += n;
+        in += n + 2;                                       // data + CRLF
+    }
+    buf[out] = '\0';
+    return out;
+}
+
 char* read_body(HTTPClient& http, size_t& out_len) {
     if (!body_buf) {
         body_buf = (char*)ps_malloc(BODY_CAP);
@@ -74,9 +100,15 @@ bool http_get_json(const char* url, JsonDocument& doc, JsonDocument& filter) {
     WiFiClientSecure client;
     client.setInsecure();   // public read-only data; CA validation not worth the RAM
     HTTPClient http;
-    http.useHTTP10(true);   // no chunked transfer encoding
+    // HTTP/1.1: since 2026-10 api.adsb.lol answers HTTP/1.0 with 426 Upgrade
+    // Required. Ask for Connection: close so read_body() ends when the server
+    // hangs up, and undo chunked transfer encoding ourselves (dechunk()).
+    http.setReuse(false);
+    static const char* kCollect[] = {"Transfer-Encoding"};
+    http.collectHeaders(kCollect, 1);
     http.setConnectTimeout(5000);
     http.setTimeout(8000);
+    http.setUserAgent(kUserAgent);
     if (!http.begin(client, url)) return false;
 
     int code = http.GET();
@@ -86,6 +118,7 @@ bool http_get_json(const char* url, JsonDocument& doc, JsonDocument& filter) {
         return false;
     }
 
+    bool chunked = http.header("Transfer-Encoding").equalsIgnoreCase("chunked");
     size_t len = 0;
     char* body = read_body(http, len);
     http.end();
@@ -93,6 +126,7 @@ bool http_get_json(const char* url, JsonDocument& doc, JsonDocument& filter) {
         log_w("[net] body alloc failed");
         return false;
     }
+    if (chunked) len = dechunk(body, len);
 
     DeserializationError err =
         deserializeJson(doc, body, len, DeserializationOption::Filter(filter));
@@ -115,6 +149,7 @@ bool http_get_text(const char* url, char* out, size_t cap, const char* bearer) {
     http.setConnectTimeout(5000);
     http.setTimeout(8000);
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setUserAgent(kUserAgent);
     bool ok = https ? http.begin(secure, url) : http.begin(plain, url);
     if (!ok) return false;
 
