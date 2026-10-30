@@ -13,7 +13,7 @@
 
 namespace radar {
 
-constexpr size_t MAX_AIRCRAFT = 12;   // nearest N kept, sorted by distance
+constexpr size_t MAX_AIRCRAFT = 12;   // N kept: airborne nearest-first, then ground
 
 struct Aircraft {
     char    callsign[12];   // trimmed, e.g. "BAW172"

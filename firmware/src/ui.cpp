@@ -339,6 +339,14 @@ void radar_place_sweep() {
     }
 }
 
+// Dead-reckoned position (km east/north of home) `dt_h` hours after the fetch.
+void radar_live_pos(const radar::Aircraft& a, float dt_h, float& ex, float& ey) {
+    float trk = a.track_deg * (float)M_PI / 180.0f;
+    float v_kmh = (a.on_ground ? 0 : a.gs_kt) * 1.852f;
+    ex = a.x_km + v_kmh * dt_h * sinf(trk);
+    ey = a.y_km + v_kmh * dt_h * cosf(trk);
+}
+
 // Re-place blips, heading vectors and labels. Positions are dead-reckoned:
 // last fetched position + ground-speed vector × data age, so blips glide
 // between polls instead of jumping every poll_s seconds.
@@ -352,13 +360,18 @@ void radar_place_blips() {
     float dt_h = age / 3600000.0f;   // hours
 
     // Overhead alert: nearest airborne aircraft inside alert_km pins focus.
+    // Uses the live (dead-reckoned) distance — a jet crosses 3 km in ~20 s,
+    // so the distance at fetch time can miss the pass entirely.
     rd_alert = false;
     if (cfg.alert_km > 0) {
         float best = 1e9f;
         for (size_t i = 0; i < rd_ac_n; i++) {
             if (rd_ac[i].on_ground) continue;
-            if (rd_ac[i].dist_km < best && rd_ac[i].dist_km <= (float)cfg.alert_km) {
-                best = rd_ac[i].dist_km;
+            float ex, ey;
+            radar_live_pos(rd_ac[i], dt_h, ex, ey);
+            float d = sqrtf(ex * ex + ey * ey);
+            if (d < best && d <= (float)cfg.alert_km) {
+                best = d;
                 rd_focus_ix = i;
                 rd_alert = true;
             }
@@ -376,11 +389,9 @@ void radar_place_blips() {
         }
         const auto& a = rd_ac[i];
 
-        // Dead-reckoned position (km east/north of home)
         float trk = a.track_deg * (float)M_PI / 180.0f;
-        float v_kmh = (a.on_ground ? 0 : a.gs_kt) * 1.852f;
-        float ex = a.x_km + v_kmh * dt_h * sinf(trk);
-        float ey = a.y_km + v_kmh * dt_h * cosf(trk);
+        float ex, ey;
+        radar_live_pos(a, dt_h, ex, ey);
         live_dist[i] = sqrtf(ex * ex + ey * ey);
         rd_bearing[i] = atan2f(ex, ey) * 180.0f / (float)M_PI;
         if (rd_bearing[i] < 0) rd_bearing[i] += 360.0f;
@@ -497,6 +508,10 @@ void radar_timer_cb(lv_timer_t*) {
         radar_place_blips();
     }
 
+    // Overhead alert flashes hard on/off (~2.5 Hz): the ring, the alerting
+    // blip and its readout. Everything else keeps the normal afterglow.
+    bool flash_on = (now / 200) % 2 == 0;
+
     // Afterglow: flare a blip when the sweep crosses its bearing, then decay.
     for (size_t i = 0; i < rd_ac_n; i++) {
         float b = rd_bearing[i];
@@ -504,18 +519,23 @@ void radar_timer_cb(lv_timer_t*) {
                        (prev > rd_sweep_deg && (b >= prev || b < rd_sweep_deg));  // wrap
         if (crossed)             rd_glow[i] = 255;
         else if (rd_glow[i] > 110) rd_glow[i] -= 3;   // ~0.8 s fade at 16 ms ticks
-        lv_obj_set_style_bg_opa(rd_blip[i], rd_glow[i], 0);
-        lv_obj_set_style_text_opa(rd_tag[i], rd_glow[i], 0);
-        lv_obj_set_style_line_opa(rd_vec[i], rd_glow[i], 0);
+        lv_opa_t opa = rd_glow[i];
+        if (rd_alert && i == rd_focus_ix) opa = flash_on ? LV_OPA_COVER : LV_OPA_TRANSP;
+        lv_obj_set_style_bg_opa(rd_blip[i], opa, 0);
+        lv_obj_set_style_text_opa(rd_tag[i], opa, 0);
+        lv_obj_set_style_line_opa(rd_vec[i], opa, 0);
     }
+    lv_opa_t focus_opa = (rd_alert && !flash_on) ? LV_OPA_TRANSP : LV_OPA_COVER;
+    lv_obj_set_style_text_opa(rd_focus1, focus_opa, 0);
+    lv_obj_set_style_text_opa(rd_focus2, focus_opa, 0);
 
-    // Overhead alert: pulse the outer ring
+    // Overhead alert: flash the outer ring
     if (rd_ring_outer) {
         if (rd_alert) {
-            lv_opa_t opa = (lv_opa_t)(140 + 115 * sinf(now * 0.012f));
-            lv_obj_set_style_border_color(rd_ring_outer, scope_col(), 0);
-            lv_obj_set_style_border_width(rd_ring_outer, 3, 0);
-            lv_obj_set_style_border_opa(rd_ring_outer, opa, 0);
+            lv_obj_set_style_border_color(rd_ring_outer, COL_TEXT, 0);
+            lv_obj_set_style_border_width(rd_ring_outer, 5, 0);
+            lv_obj_set_style_border_opa(rd_ring_outer,
+                                        flash_on ? LV_OPA_COVER : LV_OPA_TRANSP, 0);
         } else {
             lv_obj_set_style_border_color(rd_ring_outer, scope_dim(), 0);
             lv_obj_set_style_border_width(rd_ring_outer, 1, 0);

@@ -67,6 +67,8 @@ void poll_positions(float home_lat, float home_lon, uint16_t range_km) {
     f["track"]     = true;
     f["baro_rate"] = true;
     f["squawk"]    = true;
+    f["category"]  = true;
+    f["seen_pos"]  = true;
 
     JsonDocument doc(net::psram_allocator());
     if (!net::http_get_json(url, doc, filter)) {
@@ -74,24 +76,32 @@ void poll_positions(float home_lat, float home_lon, uint16_t range_km) {
         return;
     }
 
-    // Parse all returned aircraft, keep the nearest MAX_AIRCRAFT (insertion
-    // sort into a fixed buffer — the response can list hundreds).
+    // Parse all returned aircraft, keep the best MAX_AIRCRAFT (insertion
+    // sort into a fixed buffer — the response can list hundreds). Airborne
+    // traffic ranks ahead of anything on the ground: with an airport inside
+    // the scope, taxiing/parked aircraft would otherwise fill every slot and
+    // push real overflights off the display.
     Aircraft local[MAX_AIRCRAFT];
     size_t n = 0;
     float cos_lat = cosf(home_lat * DEG2RAD);
+    auto rank = [](const Aircraft& a) { return a.dist_km + (a.on_ground ? 1e6f : 0.0f); };
 
     for (JsonObjectConst ac : doc["ac"].as<JsonArrayConst>()) {
         if (!ac["lat"].is<float>() || !ac["lon"].is<float>()) continue;
 
-        Aircraft a = {};
-        a.x_km = KM_PER_DEG * (ac["lon"].as<float>() - home_lon) * cos_lat;
-        a.y_km = KM_PER_DEG * (ac["lat"].as<float>() - home_lat);
-        a.dist_km = sqrtf(a.x_km * a.x_km + a.y_km * a.y_km);
-        if (a.dist_km > (float)range_km) continue;
+        // Category C* = surface vehicles / obstacles (follow-me cars, tugs,
+        // towers) — they broadcast ADS-B but aren't flights.
+        const char* cat = ac["category"] | "";
+        if (cat[0] == 'C') continue;
 
-        strlcpy(a.callsign, ac["flight"] | "", sizeof(a.callsign));
-        for (int i = strlen(a.callsign) - 1; i >= 0 && a.callsign[i] == ' '; i--)
-            a.callsign[i] = '\0';
+        // adsb.lol keeps contacts listed for a while after their last
+        // position report; anything older than this is a ghost.
+        float seen_pos = ac["seen_pos"] | 0.0f;
+        if (seen_pos > 30.0f) continue;
+
+        Aircraft a = {};
+        a.gs_kt     = (int16_t)lroundf(ac["gs"] | 0.0f);
+        a.track_deg = (int16_t)lroundf(ac["track"] | 0.0f);
 
         JsonVariantConst alt = ac["alt_baro"];
         if (alt.is<const char*>()) {           // "ground"
@@ -99,8 +109,25 @@ void poll_positions(float home_lat, float home_lon, uint16_t range_km) {
         } else {
             a.alt_ft = alt | 0;
         }
-        a.gs_kt     = (int16_t)lroundf(ac["gs"] | 0.0f);
-        a.track_deg = (int16_t)lroundf(ac["track"] | 0.0f);
+
+        // Advance the reported position by its own age, so the UI's dead
+        // reckoning (which only knows the poll age) starts from "now".
+        float lat = ac["lat"].as<float>(), lon = ac["lon"].as<float>();
+        a.x_km = KM_PER_DEG * (lon - home_lon) * cos_lat;
+        a.y_km = KM_PER_DEG * (lat - home_lat);
+        if (!a.on_ground && seen_pos > 0.0f) {
+            float d_km = a.gs_kt * KM_PER_NM * seen_pos / 3600.0f;
+            float trk  = a.track_deg * DEG2RAD;
+            a.x_km += d_km * sinf(trk);
+            a.y_km += d_km * cosf(trk);
+        }
+        a.dist_km = sqrtf(a.x_km * a.x_km + a.y_km * a.y_km);
+        if (a.dist_km > (float)range_km) continue;
+
+        strlcpy(a.callsign, ac["flight"] | "", sizeof(a.callsign));
+        for (int i = strlen(a.callsign) - 1; i >= 0 && a.callsign[i] == ' '; i--)
+            a.callsign[i] = '\0';
+
         a.baro_rate = (int16_t)constrain((int)(ac["baro_rate"] | 0), -32000, 32000);
         const char* sq = ac["squawk"] | "";
         a.emergency = strcmp(sq, "7500") == 0 || strcmp(sq, "7600") == 0 ||
@@ -109,9 +136,9 @@ void poll_positions(float home_lat, float home_lon, uint16_t range_km) {
         if (const RouteEntry* r = find_route(a.callsign))
             strlcpy(a.route, r->route, sizeof(a.route));
 
-        // insert sorted by distance
+        // insert sorted by rank (airborne first, then distance)
         size_t pos = n;
-        while (pos > 0 && local[pos - 1].dist_km > a.dist_km) pos--;
+        while (pos > 0 && rank(local[pos - 1]) > rank(a)) pos--;
         if (pos >= MAX_AIRCRAFT) continue;
         size_t last = (n < MAX_AIRCRAFT) ? n : MAX_AIRCRAFT - 1;
         for (size_t i = last; i > pos; i--) local[i] = local[i - 1];
